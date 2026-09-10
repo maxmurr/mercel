@@ -40,14 +40,16 @@ const redisPublisher = createClient({
   url: REDIS_URL,
 });
 redisPublisher.on("error", (error: Error) =>
-  logger.error("redis", error.message)
+  logger.error({ action: "redis_error", error: error.message })
 );
 await redisPublisher.connect();
 
 const jobQueue = new Queue<{ uploadId: string }>("jobs", {
   connection: createNodeRedisClient(redisPublisher),
 });
-jobQueue.on("error", (error: Error) => logger.error("queue", error.message));
+jobQueue.on("error", (error: Error) =>
+  logger.error({ action: "queue_error", error: error.message, queue: "jobs" })
+);
 await jobQueue.waitUntilReady();
 
 new Elysia()

@@ -147,9 +147,15 @@ import { useLogger } from "evlog/elysia";
 useLogger().set({ action: "deploy" });
 ```
 
-`useLogger()` requires an active request context. For startup or queue workers,
-use `log` from `evlog` instead. No external drain is configured. Add `drain`,
-`enrich`, `include`, or `keep` options to `evlog()` when needed.
+`useLogger()` requires an active request context. Startup and connection errors
+use object-form `log` calls from `evlog` so redaction also runs in development.
+Each queue attempt uses its own `createLogger()` and emits in `finally`.
+No external drain is configured. Add `drain`, `enrich`, `include`, or `keep`
+options to `evlog()` when needed.
+
+The request handler marks S3 responses as chunked so evlog waits for the body to
+finish. Stream read failures produce an error event instead of an early success
+event; headers already sent to the client cannot be changed.
 
 [Elysia logging docs](https://www.evlog.dev/integrate/frameworks/elysia) and
 [drain adapters](https://www.evlog.dev/integrate/adapters/overview).
@@ -202,8 +208,12 @@ as a regular file and every upload succeeds. Download, install, build,
 missing-output, or upload errors mark it `failed`. Files already uploaded remain
 in S3; retries overwrite matching keys but do not delete other objects under
 `dist/<id>/`.
-Completion logs include `action: "deploy_completed"`, `jobId`, and the downloaded
-`fileCount`; failure logs include `action: "deploy_failed"`, `jobId`, and the error.
+Each processor attempt emits one wide event with `jobId`, validated `uploadId`,
+one-based `attempt`, `durationMs`, and its final `stage`. Success uses
+`action: "deploy_completed"`; failure uses `action: "deploy_failed"` and preserves
+structured error details. `fileCount` counts downloaded files. The `upload` object
+records built-file counts and bytes, plus `currentKey` when an upload fails.
+Stages distinguish validation, database writes, cleanup, download, build, and upload.
 
 Only build trusted repositories. Install and build scripts execute on the worker host with
 its filesystem and network access. The child environment passes only `HOME`,

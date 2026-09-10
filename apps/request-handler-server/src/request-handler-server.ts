@@ -54,7 +54,11 @@ export const requestHandlerServer = new Elysia()
         throw new Error("Request handler S3 response body missing.");
       }
       return new Response(body.transformToWebStream(), {
-        headers: { "Content-Type": file(filePath).type },
+        headers: {
+          "Content-Type": file(filePath).type,
+          // Mark streamed bodies so evlog waits for completion and captures read errors.
+          "Transfer-Encoding": "chunked",
+        },
       });
     } catch (error) {
       if (

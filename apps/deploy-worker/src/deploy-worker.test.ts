@@ -255,8 +255,13 @@ await symlink("index.html", "dist/link.html");`)
     expect(events.map(({ value }) => JSON.parse(value ?? "null"))).toEqual([
       expect.objectContaining({
         action: "deploy_completed",
+        attempt: 1,
+        durationMs: expect.any(Number),
         fileCount: 5,
         jobId: "abc12",
+        stage: "complete",
+        upload: { fileCount: 3, uploadedBytes: 8, uploadedCount: 3 },
+        uploadId: "abc12",
       }),
       expect.objectContaining({
         action: "deploy_completed",
@@ -297,8 +302,18 @@ await symlink("index.html", "dist/link.html");`)
     expect(await failedJob.getState()).toBe("failed");
     expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
       action: "deploy_failed",
+      attempt: 1,
+      durationMs: expect.any(Number),
+      error: {
+        message: expect.any(String),
+        name: "AccessDenied",
+        stack: expect.any(String),
+      },
       jobId: "ghi56",
       level: "error",
+      stage: "download",
+      upload: { uploadedBytes: 0, uploadedCount: 0 },
+      uploadId: "ghi56",
     });
     expect(await statusOf("ghi56")).toBe("failed");
     const retryDirectory = join(directory, "output", "deploy", "ghi56");
@@ -316,10 +331,27 @@ await symlink("index.html", "dist/link.html");`)
     // Fail-fast: no upload is attempted after the rejected key, whatever the directory order.
     expect(uploadRequests.at(-1)).toBe(failedKey);
     expect(uploadedFiles.has(failedKey)).toBe(false);
+    const partialUploads = [...uploadedFiles.entries()].filter(([key]) =>
+      key.startsWith("dist/ghi56/")
+    );
     expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
       action: "deploy_failed",
+      attempt: 2,
+      error: { name: "AccessDenied" },
+      fileCount: 5,
       jobId: "ghi56",
       level: "error",
+      stage: "upload",
+      upload: {
+        currentKey: failedKey,
+        fileCount: 3,
+        uploadedBytes: partialUploads.reduce(
+          (total, [, contents]) => total + contents.length,
+          0
+        ),
+        uploadedCount: partialUploads.length,
+      },
+      uploadId: "ghi56",
     });
     failedKey = "";
     await failedJob.retry();
@@ -332,8 +364,12 @@ await symlink("index.html", "dist/link.html");`)
     ).rejects.toMatchObject({ code: "ENOENT" });
     expect(JSON.parse((await lines.next()).value ?? "null")).toMatchObject({
       action: "deploy_completed",
+      attempt: 3,
       fileCount: 5,
       jobId: "ghi56",
+      stage: "complete",
+      upload: { fileCount: 3, uploadedBytes: 8, uploadedCount: 3 },
+      uploadId: "ghi56",
     });
 
     expect(await statusOf("ghi56")).toBe("completed");
@@ -354,7 +390,15 @@ await symlink("index.html", "dist/link.html");`)
     expect(await statusOf("ghi56")).toBe("failed");
     expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
       action: "deploy_failed",
+      attempt: 1,
+      error: {
+        code: 1,
+        message: expect.any(String),
+        stack: expect.any(String),
+      },
       jobId: "failed-build",
+      stage: "build",
+      uploadId: "ghi56",
     });
     await expect(
       readFile(join(retryDirectory, "dist", "index.html"))
@@ -419,7 +463,10 @@ await symlink("index.html", "dist/link.html");`)
     ).toMatchObject({ id: "nodb1", level: "error" });
     expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
       action: "deploy_failed",
+      error: { cause: expect.any(Object), message: expect.any(String) },
       jobId: "nodb1",
+      stage: "persist_active",
+      uploadId: "nodb1",
     });
     await sql`ALTER TABLE unavailable_deployments RENAME TO deployments`;
     expect(prefixes).toEqual([

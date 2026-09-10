@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:http";
+import { setImmediate } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { initLogger } from "evlog";
+import { initLogger, type WideEvent } from "evlog";
 import { expect, test, vi } from "vitest";
 
 const REQUEST_HANDLER_SERVER_PATH = fileURLToPath(
@@ -98,6 +99,18 @@ test("request handler serves S3 files with MIME types and keeps requests inside 
     expect(await home.text()).toBe(html.toString());
     expect(requestedKeys[0]).toBe("/test-bucket/dist/abc12/index.html");
 
+    requestHandlerServer.listen({ hostname: "127.0.0.1", port: 0 });
+    onTestFinished(async () => {
+      await requestHandlerServer.stop(true);
+    });
+    const { server } = requestHandlerServer;
+    assert(server);
+    const served = await fetch(`http://127.0.0.1:${server.port}/`, {
+      headers: { host: "abc12.localhost" },
+    });
+    expect(served.status).toBe(200);
+    expect(Buffer.from(await served.arrayBuffer())).toEqual(html);
+
     await Promise.all(
       files.map(async ({ body, filePath, mimeType }) => {
         const response = await requestHandlerServer.handle(
@@ -144,3 +157,77 @@ test("request handler serves S3 files with MIME types and keeps requests inside 
     await closed;
   }
 });
+
+test.for(["complete", "error", "cancel"] as const)(
+  "request handler emits once when an S3 stream ends with %s",
+  async (outcome, { onTestFinished }) => {
+    vi.stubEnv("S3_BUCKET", "test-bucket");
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllEnvs();
+    });
+    const { requestHandlerServer } = await import(
+      "./request-handler-server.ts"
+    );
+    const { s3 } = await import("@repo/utils/s3");
+    const events: WideEvent[] = [];
+    const requestId = `stream-${outcome}`;
+    initLogger({
+      drain: ({ event }) => {
+        if (event.requestId === requestId) {
+          events.push(event);
+        }
+      },
+      silent: true,
+    });
+    const stream =
+      Promise.withResolvers<ReadableStreamDefaultController<Uint8Array>>();
+    vi.spyOn(s3, "send").mockImplementationOnce(() =>
+      Promise.resolve({
+        Body: {
+          transformToWebStream: () =>
+            new ReadableStream<Uint8Array>({
+              start: (streamController) => stream.resolve(streamController),
+            }),
+        },
+      })
+    );
+    const response = await requestHandlerServer.handle(
+      new Request("http://abc12.example.com/index.html", {
+        headers: { "x-request-id": requestId },
+      })
+    );
+    const controller = await stream.promise;
+    await setImmediate();
+    expect(events).toHaveLength(0);
+    expect(response.status).toBe(200);
+    const reader = response.body?.getReader();
+    assert(reader);
+    controller.enqueue(new TextEncoder().encode("partial body"));
+    expect(await reader.read()).toMatchObject({ done: false });
+    if (outcome === "error") {
+      controller.error(new Error("S3 stream read failed"));
+      await expect(reader.read()).rejects.toThrow("S3 stream read failed");
+    } else if (outcome === "cancel") {
+      await reader.cancel();
+    } else {
+      controller.close();
+      expect(await reader.read()).toMatchObject({ done: true });
+    }
+    await setImmediate();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      durationMs: expect.any(Number),
+      id: "abc12",
+      level: outcome === "error" ? "error" : "info",
+      path: "/index.html",
+      status: outcome === "error" ? 500 : 200,
+    });
+    if (outcome === "error") {
+      expect(events[0]).toHaveProperty(
+        "error.message",
+        "S3 stream read failed"
+      );
+    }
+  }
+);

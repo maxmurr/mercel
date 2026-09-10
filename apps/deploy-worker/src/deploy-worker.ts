@@ -6,15 +6,18 @@ import { deployments } from "@repo/db/schema";
 import { buildApp } from "@repo/utils/build-app";
 import { downloadFolderFromS3 } from "@repo/utils/download-folder-from-s3";
 import { idPattern } from "@repo/utils/id";
-import { uploadFolderToS3 } from "@repo/utils/upload-folder-to-s3";
+import {
+  type UploadFolderProgress,
+  uploadFolderToS3,
+} from "@repo/utils/upload-folder-to-s3";
 import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
-import { initLogger, log as logger } from "evlog";
+import { createLogger, initLogger, log as logger } from "evlog";
 
 initLogger({
   env: { service: "mercel-deploy-worker" },
   redact: {
-    patterns: [/\b[a-z][a-z\d+.-]*:\/\/\S+/gi],
+    patterns: [/\b[a-z][a-z\d+.-]*:\/\/\S+/gi, /[?#]\S+/g],
   },
 });
 
@@ -34,70 +37,82 @@ const isDeployJobData = (data: unknown): data is { uploadId: string } =>
 const jobWorker = new Worker<unknown, number>(
   "jobs",
   async (job) => {
-    if (job.name !== "deploy") {
-      throw new Error("Deploy job name must be deploy.");
-    }
-    const { data } = job;
-    if (!isDeployJobData(data)) {
-      throw new Error(
-        "Deploy job data must be an object whose uploadId is five letters or digits."
-      );
-    }
-
-    const directoryPath = join("output", "deploy", data.uploadId);
+    const log = createLogger({
+      action: "deploy_failed",
+      attempt: job.attemptsMade + 1,
+      jobId: job.id,
+      queue: "jobs",
+      stage: "validate",
+    });
+    let uploadId: string | undefined;
+    let progress: UploadFolderProgress | undefined;
     try {
+      if (job.name !== "deploy") {
+        throw new Error("Deploy job name must be deploy.");
+      }
+      const { data } = job;
+      if (!isDeployJobData(data)) {
+        throw new Error(
+          "Deploy job data must be an object whose uploadId is five letters or digits."
+        );
+      }
+      ({ uploadId } = data);
+      const directoryPath = join("output", "deploy", uploadId);
+      log.set({ stage: "persist_active", uploadId });
       await postgresDb
         .insert(deployments)
-        .values({ id: data.uploadId, status: "active" })
+        .values({ id: uploadId, status: "active" })
         .onConflictDoUpdate({
           set: { status: "active" },
           target: deployments.id,
         });
       // Each job owns this scratch directory; discard partial downloads and builds before retrying.
+      log.set({ stage: "cleanup" });
       await rm(directoryPath, { force: true, recursive: true });
+      log.set({ stage: "download" });
       const fileCount = await downloadFolderFromS3({
         directoryPath,
-        prefix: `output/${data.uploadId}`,
+        prefix: `output/${uploadId}`,
       });
+      log.set({ fileCount });
       if (fileCount === 0) {
         throw new Error(
-          `Deploy download found no files for uploadId: ${data.uploadId}`
+          `Deploy download found no files for uploadId: ${uploadId}`
         );
       }
+      log.set({ stage: "build" });
       await buildApp({ directoryPath, preset: "vite" });
-      await uploadFolderToS3({
+      log.set({ stage: "upload" });
+      progress = await uploadFolderToS3({
         directoryPath: join(directoryPath, "dist"),
-        prefix: `dist/${data.uploadId}`,
+        onProgress: (update) => {
+          progress = update;
+        },
+        prefix: `dist/${uploadId}`,
       });
+      log.set({ stage: "persist_completed" });
       await postgresDb
         .update(deployments)
         .set({ status: "completed" })
-        .where(eq(deployments.id, data.uploadId));
+        .where(eq(deployments.id, uploadId));
+      log.set({ action: "deploy_completed", stage: "complete" });
       return fileCount;
     } catch (error) {
-      await markDeploymentFailed({ from: ["active"], id: data.uploadId });
+      log.error(error instanceof Error ? error : new Error(String(error)));
+      if (uploadId) {
+        await markDeploymentFailed({ from: ["active"], id: uploadId });
+      }
       throw error;
+    } finally {
+      log.set({ upload: { uploadedBytes: 0, uploadedCount: 0, ...progress } });
+      log.emit();
     }
   },
   { connection: { url: REDIS_URL } }
 );
-jobWorker.on("error", (error) => logger.error("queue", error.message));
-jobWorker.on("completed", (job, fileCount) => {
-  logger.info({
-    action: "deploy_completed",
-    fileCount,
-    jobId: job.id,
-    queue: "jobs",
-  });
-});
-jobWorker.on("failed", (job, error) => {
-  logger.error({
-    action: "deploy_failed",
-    error: error.message,
-    jobId: job?.id,
-    queue: "jobs",
-  });
-});
+jobWorker.on("error", (error) =>
+  logger.error({ action: "queue_error", error: error.message, queue: "jobs" })
+);
 const shutdown = async () => {
   logger.info({ action: "worker_stopping", queue: "jobs" });
   try {
@@ -107,10 +122,11 @@ const shutdown = async () => {
       await postgresDb.$client.close();
     }
   } catch (error) {
-    logger.error(
-      "worker_shutdown",
-      error instanceof Error ? error.message : String(error)
-    );
+    logger.error({
+      action: "worker_shutdown",
+      error: error instanceof Error ? error.message : String(error),
+      queue: "jobs",
+    });
     process.exitCode = 1;
   }
 };
