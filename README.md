@@ -149,8 +149,11 @@ from S3 into `output/deploy/<id>` relative to its working directory, preserving
 nested paths. IDs must contain five letters or digits. Each attempt clears that
 job's local directory first, so retries restart partial downloads and builds.
 
-After downloading, the worker assumes a Vite + React static app with a root
-`package.json`, `package-lock.json`, and a `build` script that writes `dist/`.
+After downloading, the worker calls `buildApp({ directoryPath, preset: "vite" })`
+from `src/utils/build-app.ts`. The required `preset` option currently supports
+only `"vite"`; unsupported presets fail before any install or build runs.
+The Vite preset expects a static app with a root `package.json`,
+`package-lock.json`, and a `build` script that writes `dist/`.
 Install Node.js and npm on the worker host. Mercel still runs on Bun, but downloaded
 apps use `npm ci --include=dev` with `NODE_ENV=development`, then `npm run build`
 with `NODE_ENV=production`. Missing or mismatched lockfiles fail the job; npm does

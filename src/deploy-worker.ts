@@ -6,7 +6,7 @@ import { initLogger, log as logger } from "evlog";
 import { postgresDb } from "./db/database.ts";
 import { markDeploymentFailed } from "./db/deployments.ts";
 import { deployments } from "./db/schema.ts";
-import { buildStaticApp } from "./utils/build-static-app.ts";
+import { buildApp } from "./utils/build-app.ts";
 import { downloadFolderFromS3 } from "./utils/download-folder-from-s3.ts";
 import { idPattern } from "./utils/id.ts";
 import { uploadFolderToS3 } from "./utils/upload-folder-to-s3.ts";
@@ -64,7 +64,7 @@ const jobWorker = new Worker<unknown, number>(
           `Deploy download found no files for uploadId: ${data.uploadId}`
         );
       }
-      await buildStaticApp({ directoryPath });
+      await buildApp({ directoryPath, preset: "vite" });
       await uploadFolderToS3({
         directoryPath: join(directoryPath, "dist"),
         prefix: `dist/${data.uploadId}`,
