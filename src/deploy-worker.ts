@@ -1,13 +1,12 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { Worker } from "bullmq";
-import { Elysia } from "elysia";
 import { initLogger, log as logger } from "evlog";
 import { downloadFolderFromS3 } from "./utils/download-folder-from-s3.ts";
 import { idPattern } from "./utils/id.ts";
 
 initLogger({
-  env: { service: "mercel-deploy-server" },
+  env: { service: "mercel-deploy-worker" },
   redact: {
     patterns: [/\b[a-z][a-z\d+.-]*:\/\/\S+/gi],
   },
@@ -16,7 +15,7 @@ initLogger({
 const { REDIS_URL } = process.env;
 
 if (!REDIS_URL) {
-  throw new Error("Deploy server configuration missing: set REDIS_URL.");
+  throw new Error("Deploy worker configuration missing: set REDIS_URL.");
 }
 
 const isDeployJobData = (data: unknown): data is { uploadId: string } =>
@@ -72,16 +71,20 @@ jobWorker.on("failed", (job, error) => {
     queue: "jobs",
   });
 });
-await jobWorker.waitUntilReady();
-
-new Elysia()
-  .onStop(async () => {
+const shutdown = async () => {
+  logger.info({ action: "worker_stopping", queue: "jobs" });
+  try {
     await jobWorker.close();
-  })
-  .listen(process.env.DEPLOY_PORT ?? 3001, (server) => {
-    logger.info({
-      action: "server_start",
-      hostname: server.hostname,
-      port: server.port,
-    });
-  });
+  } catch (error) {
+    logger.error(
+      "worker_shutdown",
+      error instanceof Error ? error.message : String(error)
+    );
+    process.exitCode = 1;
+  }
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+await jobWorker.waitUntilReady();
+logger.info({ action: "worker_start", queue: "jobs" });

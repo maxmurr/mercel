@@ -129,7 +129,11 @@ Add application queues to the mount's `queues` array as needed. Start the deploy
 worker in another terminal with `bun run dev:deploy` or `bun run start:deploy`.
 It uses the same `REDIS_URL`, `S3_BUCKET`, and AWS settings as the upload server.
 
-The deploy server consumes `deploy` jobs from `jobs`, including jobs queued while
+`src/deploy-worker.ts` runs without an HTTP listener. It logs `worker_start` when
+Redis is ready. On `SIGINT` or `SIGTERM`, it logs `worker_stopping`, stops taking
+jobs, and waits for active jobs to finish before exiting.
+
+The deploy worker consumes `deploy` jobs from `jobs`, including jobs queued while
 it was offline. For each `{ "uploadId": "<id>" }`, it downloads `output/<id>/`
 from S3 into `output/deploy/<id>` relative to its working directory, preserving
 nested paths. IDs must contain five letters or digits. Each attempt clears that
