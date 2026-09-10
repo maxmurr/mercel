@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:http";
+import { fileURLToPath } from "node:url";
 import { initLogger } from "evlog";
 import { expect, test, vi } from "vitest";
+
+const REQUEST_HANDLER_SERVER_PATH = fileURLToPath(
+  new URL("./request-handler-server.ts", import.meta.url)
+);
 
 const html = Buffer.from(
   "<!doctype html><html><body>Deployed app</body></html>"
@@ -26,6 +32,19 @@ const files = [
   },
   { body: html, filePath: "page with spaces.html", mimeType: "text/html" },
 ];
+
+test("request handler rejects missing S3_BUCKET", () => {
+  const result = spawnSync("bun", [REQUEST_HANDLER_SERVER_PATH], {
+    env: { ...process.env, S3_BUCKET: "" },
+    timeout: 5000,
+  });
+
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(1);
+  expect(result.stderr.toString()).toContain(
+    "Request handler configuration missing: set S3_BUCKET."
+  );
+});
 
 test("request handler serves S3 files with MIME types and keeps requests inside the application prefix", async ({
   onTestFinished,

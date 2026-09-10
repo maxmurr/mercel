@@ -1,7 +1,7 @@
 import { GetObjectCommand, S3ServiceException } from "@aws-sdk/client-s3";
 import { file } from "bun";
 import { Elysia } from "elysia";
-import { initLogger } from "evlog";
+import { initLogger, log as logger } from "evlog";
 import { evlog } from "evlog/elysia";
 import { idPattern } from "./utils/id.ts";
 import { s3 } from "./utils/s3.ts";
@@ -15,7 +15,10 @@ if (!bucket) {
 
 const unsafeFilePathCharacters = /[\\\0]/;
 
-/** Serves application files from S3 keys under dist/<id>/ using the first hostname label as the ID. */
+/**
+ * Serves application files from S3 keys under dist/<id>/ using the first hostname label as the ID.
+ * Hostnames arrive lowercased, so legacy mixed-case IDs are unreachable until their keys are lowercased.
+ */
 export const requestHandlerServer = new Elysia()
   .use(evlog())
   .get("/*", async ({ request, log, status }) => {
@@ -34,26 +37,24 @@ export const requestHandlerServer = new Elysia()
     } catch {
       return status(400, "Invalid file path");
     }
-    if (
-      unsafeFilePathCharacters.test(filePath) ||
-      filePath.split("/").some((part) => part === "." || part === "..")
-    ) {
+    const hasUnsafeCharacter = unsafeFilePathCharacters.test(filePath);
+    const hasUnsafeSegment = filePath
+      .split("/")
+      .some((part) => part === "." || part === "..");
+    if (hasUnsafeCharacter || hasUnsafeSegment) {
       return status(400, "Invalid file path");
     }
     log.set({ filePath });
 
     try {
-      const { Body: body, ContentType: contentType } = await s3.send(
+      const { Body: body } = await s3.send(
         new GetObjectCommand({ Bucket: bucket, Key: `dist/${id}${filePath}` })
       );
       if (!body) {
         throw new Error("Request handler S3 response body missing.");
       }
       return new Response(body.transformToWebStream(), {
-        headers: {
-          "Content-Type":
-            file(filePath).type || contentType || "application/octet-stream",
-        },
+        headers: { "Content-Type": file(filePath).type },
       });
     } catch (error) {
       if (
@@ -68,5 +69,11 @@ export const requestHandlerServer = new Elysia()
   });
 
 if (import.meta.main) {
-  requestHandlerServer.listen(process.env.PORT ?? 3001);
+  requestHandlerServer.listen(process.env.PORT ?? 3001, (server) => {
+    logger.info({
+      action: "server_start",
+      hostname: server.hostname,
+      port: server.port,
+    });
+  });
 }
