@@ -10,7 +10,7 @@ import {
   useRef,
 } from "react";
 import { ProjectSettings } from "@/components/new-project/project-settings";
-import { RepositorySummary } from "@/components/new-project/repository-summary";
+import { RepositoryField } from "@/components/new-project/repository-field";
 import { SitePreview } from "@/components/new-project/site-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import {
   fetchDeploymentStatus,
@@ -30,15 +31,19 @@ import {
 } from "@/lib/deployment";
 import { cn } from "@/lib/utils";
 
-const repository = "maxmurr/vite-react-app";
+const repositorySuffixPattern = /(?:\.git)?\/?$/;
 const DEPLOYMENT_POLL_INTERVAL_MS = 2000;
 
-/** Deploys the fixed repository and observes its persisted status until completion. */
+/** Deploys the submitted repository and observes its persisted status until completion. */
 export function NewProjectForm({ className }: { className?: string }) {
   const formId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const submissionLocked: RefObject<boolean> = useRef(false);
   const deployment = useMutation({ mutationFn: startDeployment, retry: false });
+  const { mutate, variables: submittedRepoUrl = "" } = deployment;
+  const repository = submittedRepoUrl
+    .replace("https://github.com/", "")
+    .replace(repositorySuffixPattern, "");
   const deploymentId = deployment.data?.id;
   const deploymentStatus = useQuery({
     enabled: Boolean(deploymentId),
@@ -70,6 +75,7 @@ export function NewProjectForm({ className }: { className?: string }) {
         !deploymentFailed &&
         (!statusLookupFailed || deploymentStatus.isFetching))
   );
+  const repositoryLocked = isDeploying || statusLookupFailed;
   let deploymentError =
     deployment.error?.message ??
     (deploymentFailed ? "Deployment failed. You can deploy again." : "");
@@ -84,15 +90,22 @@ export function NewProjectForm({ className }: { className?: string }) {
     buttonLabel = "Check status";
   }
 
-  const { mutate } = deployment;
   const handleDeploymentSubmit = useCallback(
     (event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (submissionLocked.current || isDeploying) {
+      if (
+        submissionLocked.current ||
+        isDeploying ||
+        !event.currentTarget.reportValidity()
+      ) {
+        return;
+      }
+      const repoUrl = new FormData(event.currentTarget).get("repoUrl");
+      if (typeof repoUrl !== "string") {
         return;
       }
       submissionLocked.current = true;
-      mutate(`https://github.com/${repository}.git`);
+      mutate(repoUrl);
     },
     [isDeploying, mutate]
   );
@@ -125,20 +138,21 @@ export function NewProjectForm({ className }: { className?: string }) {
               {showCongratulations ? "Congratulations!" : "New Project"}
             </h1>
           </CardTitle>
-          {showCongratulations ? (
-            <CardDescription>
-              Your deployment is ready. Preview it below or open the site.
-            </CardDescription>
-          ) : (
-            <RepositorySummary branch="main" repository={repository} />
-          )}
+          <CardDescription>
+            {showCongratulations
+              ? "Your deployment is ready. Preview it below or open the site."
+              : "Deploy your GitHub repository using the settings below."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="px-0 sm:px-8">
           {showCongratulations && deployment.data ? (
             <SitePreview href={deployment.data.previewUrl} title={repository} />
           ) : (
             <form id={formId} onSubmit={handleDeploymentSubmit}>
-              <ProjectSettings />
+              <FieldGroup>
+                <RepositoryField disabled={repositoryLocked} />
+                <ProjectSettings />
+              </FieldGroup>
             </form>
           )}
         </CardContent>
