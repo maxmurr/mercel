@@ -2,6 +2,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { Worker } from "bullmq";
 import { initLogger, log as logger } from "evlog";
+import { buildStaticApp } from "./utils/build-static-app.ts";
 import { downloadFolderFromS3 } from "./utils/download-folder-from-s3.ts";
 import { idPattern } from "./utils/id.ts";
 
@@ -39,7 +40,7 @@ const jobWorker = new Worker<unknown, number>(
     }
 
     const directoryPath = join("output", "deploy", data.uploadId);
-    // Each job owns this scratch directory; discard partial downloads before retrying.
+    // Each job owns this scratch directory; discard partial downloads and builds before retrying.
     await rm(directoryPath, { force: true, recursive: true });
     const fileCount = await downloadFolderFromS3({
       directoryPath,
@@ -50,6 +51,7 @@ const jobWorker = new Worker<unknown, number>(
         `Deploy download found no files for uploadId: ${data.uploadId}`
       );
     }
+    await buildStaticApp({ directoryPath });
     return fileCount;
   },
   { connection: { url: REDIS_URL } }
@@ -57,7 +59,7 @@ const jobWorker = new Worker<unknown, number>(
 jobWorker.on("error", (error) => logger.error("queue", error.message));
 jobWorker.on("completed", (job, fileCount) => {
   logger.info({
-    action: "download_completed",
+    action: "deploy_completed",
     fileCount,
     jobId: job.id,
     queue: "jobs",
@@ -65,7 +67,7 @@ jobWorker.on("completed", (job, fileCount) => {
 });
 jobWorker.on("failed", (job, error) => {
   logger.error({
-    action: "download_failed",
+    action: "deploy_failed",
     error: error.message,
     jobId: job?.id,
     queue: "jobs",

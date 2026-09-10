@@ -137,12 +137,27 @@ The deploy worker consumes `deploy` jobs from `jobs`, including jobs queued whil
 it was offline. For each `{ "uploadId": "<id>" }`, it downloads `output/<id>/`
 from S3 into `output/deploy/<id>` relative to its working directory, preserving
 nested paths. IDs must contain five letters or digits. Each attempt clears that
-job's local directory first, so retries restart partial downloads.
+job's local directory first, so retries restart partial downloads and builds.
 
-BullMQ marks the job `completed` after the download finishes or `failed` if it
-throws or the prefix contains no files. Completion logs include
-`action: "download_completed"`, `jobId`, and `fileCount`; failure logs include
-`action: "download_failed"`, `jobId`, and the error. This worker downloads files only; it does not build or serve the project.
+After downloading, the worker assumes a Vite + React static app with a root
+`package.json`, `package-lock.json`, and a `build` script that writes `dist/`.
+Install Node.js and npm on the worker host. Mercel still runs on Bun, but downloaded
+apps use `npm ci --include=dev` with `NODE_ENV=development`, then `npm run build`
+with `NODE_ENV=production`. Missing or mismatched lockfiles fail the job; npm does
+not regenerate them. Install lifecycle scripts run normally.
+Each command has a five-minute timeout.
+Any existing `dist/` is removed before building. The resulting static files stay
+in `output/deploy/<id>/dist/`; the worker does not upload or serve them.
+
+BullMQ marks the job `completed` only after the build produces `dist/index.html`.
+Download, install, build, or missing-output errors mark it `failed`.
+Completion logs include `action: "deploy_completed"`, `jobId`, and the downloaded
+`fileCount`; failure logs include `action: "deploy_failed"`, `jobId`, and the error.
+
+Only build trusted repositories. Install and build scripts execute on the worker host with
+its filesystem and network access. The child environment passes only `HOME`,
+`PATH`, `TMPDIR`, `CI`, and `NODE_ENV`, but this is not a sandbox. Isolate builds
+before accepting untrusted repositories.
 
 [Elysia integration docs](https://getworkbench.dev/docs/frameworks/elysia).
 

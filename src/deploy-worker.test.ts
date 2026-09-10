@@ -28,7 +28,7 @@ test("deploy worker rejects missing REDIS_URL", () => {
 });
 
 test.for(["SIGINT", "SIGTERM"] as const)(
-  "deploy worker downloads BullMQ jobs, retries partial downloads, rejects invalid jobs, and drains on %s",
+  "deploy worker downloads and builds BullMQ jobs, retries failures, rejects invalid jobs, and drains on %s",
   { timeout: 30_000 },
   async (signal, { onTestFinished }) => {
     const directory = await mkdtemp(join(tmpdir(), "mercel-deploy-"));
@@ -86,6 +86,24 @@ test.for(["SIGINT", "SIGTERM"] as const)(
       ["output/ghi56/second.txt", Buffer.from("second")],
       ["output/jkl78/index.html", Buffer.from("shutdown")],
     ]);
+    for (const id of ["abc12", "def34", "ghi56", "jkl78"]) {
+      files.set(
+        `output/${id}/package.json`,
+        Buffer.from(JSON.stringify({ scripts: { build: "node build.mjs" } }))
+      );
+      files.set(
+        `output/${id}/package-lock.json`,
+        Buffer.from(
+          JSON.stringify({ lockfileVersion: 3, packages: { "": {} } })
+        )
+      );
+      files.set(
+        `output/${id}/build.mjs`,
+        Buffer.from(`import { mkdir, writeFile } from "node:fs/promises";
+await mkdir("dist", { recursive: true });
+await writeFile("dist/index.html", "built");`)
+      );
+    }
     const shutdownDownload = Promise.withResolvers<ServerResponse>();
     const prefixes: string[] = [];
     let failedKey = "output/ghi56/second.txt";
@@ -183,7 +201,7 @@ test.for(["SIGINT", "SIGTERM"] as const)(
       await Promise.all(
         jobs.map((job) => job.waitUntilFinished(queueEvents, 5000))
       )
-    ).toEqual([2, 1]);
+    ).toEqual([5, 4]);
     expect(await Promise.all(jobs.map((job) => job.getState()))).toEqual([
       "completed",
       "completed",
@@ -200,16 +218,27 @@ test.for(["SIGINT", "SIGTERM"] as const)(
     const events = await Promise.all(jobs.map(() => lines.next()));
     expect(events.map(({ value }) => JSON.parse(value ?? "null"))).toEqual([
       expect.objectContaining({
-        action: "download_completed",
-        fileCount: 2,
+        action: "deploy_completed",
+        fileCount: 5,
         jobId: "abc12",
       }),
       expect.objectContaining({
-        action: "download_completed",
-        fileCount: 1,
+        action: "deploy_completed",
+        fileCount: 4,
         jobId: "def34",
       }),
     ]);
+
+    await Promise.all(
+      ["abc12", "def34"].map(async (id) => {
+        expect(
+          await readFile(
+            join(directory, "output", "deploy", id, "dist", "index.html"),
+            "utf8"
+          )
+        ).toBe("built");
+      })
+    );
 
     const failedJob = await queue.add(
       "deploy",
@@ -221,7 +250,7 @@ test.for(["SIGINT", "SIGTERM"] as const)(
     ).rejects.toThrow();
     expect(await failedJob.getState()).toBe("failed");
     expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
-      action: "download_failed",
+      action: "deploy_failed",
       jobId: "ghi56",
       level: "error",
     });
@@ -232,7 +261,7 @@ test.for(["SIGINT", "SIGTERM"] as const)(
     await writeFile(join(retryDirectory, "stale.txt"), "discard on retry");
     failedKey = "";
     await failedJob.retry();
-    expect(await failedJob.waitUntilFinished(queueEvents, 5000)).toBe(2);
+    expect(await failedJob.waitUntilFinished(queueEvents, 5000)).toBe(5);
     expect(await readFile(join(retryDirectory, "second.txt"), "utf8")).toBe(
       "second"
     );
@@ -240,10 +269,28 @@ test.for(["SIGINT", "SIGTERM"] as const)(
       readFile(join(retryDirectory, "stale.txt"))
     ).rejects.toMatchObject({ code: "ENOENT" });
     expect(JSON.parse((await lines.next()).value ?? "null")).toMatchObject({
-      action: "download_completed",
-      fileCount: 2,
+      action: "deploy_completed",
+      fileCount: 5,
       jobId: "ghi56",
     });
+
+    files.set("output/ghi56/build.mjs", Buffer.from("process.exit(1);"));
+    const failedBuildJob = await queue.add(
+      "deploy",
+      { uploadId: "ghi56" },
+      { jobId: "failed-build" }
+    );
+    await expect(
+      failedBuildJob.waitUntilFinished(queueEvents, 5000)
+    ).rejects.toThrow();
+    expect(await failedBuildJob.getState()).toBe("failed");
+    expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
+      action: "deploy_failed",
+      jobId: "failed-build",
+    });
+    await expect(
+      readFile(join(retryDirectory, "dist", "index.html"))
+    ).rejects.toMatchObject({ code: "ENOENT" });
 
     const emptyJob = await queue.add(
       "deploy",
@@ -278,6 +325,7 @@ test.for(["SIGINT", "SIGTERM"] as const)(
       "output/def34/",
       "output/ghi56/",
       "output/ghi56/",
+      "output/ghi56/",
       "output/empty/",
     ]);
     const shutdownJob = await queue.add(
@@ -301,7 +349,7 @@ test.for(["SIGINT", "SIGTERM"] as const)(
     );
     shutdownResponse.writeHead(200);
     shutdownResponse.end(files.get("output/jkl78/index.html"));
-    expect(await shutdownJob.waitUntilFinished(queueEvents, 5000)).toBe(1);
+    expect(await shutdownJob.waitUntilFinished(queueEvents, 5000)).toBe(4);
     expect(await workerClosed).toEqual([0, null]);
     expect(await waitingJob.getState()).toBe("waiting");
     expect(
@@ -310,6 +358,12 @@ test.for(["SIGINT", "SIGTERM"] as const)(
         "utf8"
       )
     ).toBe("shutdown");
+    expect(
+      await readFile(
+        join(directory, "output", "deploy", "jkl78", "dist", "index.html"),
+        "utf8"
+      )
+    ).toBe("built");
     expect(queueErrors).toEqual([]);
   }
 );
