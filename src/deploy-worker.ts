@@ -1,7 +1,11 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { Worker } from "bullmq";
+import { eq } from "drizzle-orm";
 import { initLogger, log as logger } from "evlog";
+import { postgresDb } from "./db/database.ts";
+import { markDeploymentFailed } from "./db/deployments.ts";
+import { deployments } from "./db/schema.ts";
 import { buildStaticApp } from "./utils/build-static-app.ts";
 import { downloadFolderFromS3 } from "./utils/download-folder-from-s3.ts";
 import { idPattern } from "./utils/id.ts";
@@ -41,23 +45,39 @@ const jobWorker = new Worker<unknown, number>(
     }
 
     const directoryPath = join("output", "deploy", data.uploadId);
-    // Each job owns this scratch directory; discard partial downloads and builds before retrying.
-    await rm(directoryPath, { force: true, recursive: true });
-    const fileCount = await downloadFolderFromS3({
-      directoryPath,
-      prefix: `output/${data.uploadId}`,
-    });
-    if (fileCount === 0) {
-      throw new Error(
-        `Deploy download found no files for uploadId: ${data.uploadId}`
-      );
+    try {
+      await postgresDb
+        .insert(deployments)
+        .values({ id: data.uploadId, status: "active" })
+        .onConflictDoUpdate({
+          set: { status: "active" },
+          target: deployments.id,
+        });
+      // Each job owns this scratch directory; discard partial downloads and builds before retrying.
+      await rm(directoryPath, { force: true, recursive: true });
+      const fileCount = await downloadFolderFromS3({
+        directoryPath,
+        prefix: `output/${data.uploadId}`,
+      });
+      if (fileCount === 0) {
+        throw new Error(
+          `Deploy download found no files for uploadId: ${data.uploadId}`
+        );
+      }
+      await buildStaticApp({ directoryPath });
+      await uploadFolderToS3({
+        directoryPath: join(directoryPath, "dist"),
+        prefix: `dist/${data.uploadId}`,
+      });
+      await postgresDb
+        .update(deployments)
+        .set({ status: "completed" })
+        .where(eq(deployments.id, data.uploadId));
+      return fileCount;
+    } catch (error) {
+      await markDeploymentFailed({ from: ["active"], id: data.uploadId });
+      throw error;
     }
-    await buildStaticApp({ directoryPath });
-    await uploadFolderToS3({
-      directoryPath: join(directoryPath, "dist"),
-      prefix: `dist/${data.uploadId}`,
-    });
-    return fileCount;
   },
   { connection: { url: REDIS_URL } }
 );
@@ -81,7 +101,11 @@ jobWorker.on("failed", (job, error) => {
 const shutdown = async () => {
   logger.info({ action: "worker_stopping", queue: "jobs" });
   try {
-    await jobWorker.close();
+    try {
+      await jobWorker.close();
+    } finally {
+      await postgresDb.$client.close();
+    }
   } catch (error) {
     logger.error(
       "worker_shutdown",

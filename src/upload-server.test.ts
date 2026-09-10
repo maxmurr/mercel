@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import {
   mkdir,
@@ -16,9 +16,13 @@ import { createInterface } from "node:readline";
 import { buffer } from "node:stream/consumers";
 import { fileURLToPath } from "node:url";
 import { Worker } from "bullmq";
+import { eq } from "drizzle-orm";
 import { createClient } from "redis";
 import { simpleGit } from "simple-git";
 import { expect, test } from "vitest";
+import { deployments } from "./db/schema.ts";
+import { createTestDatabase } from "./db/test-database.ts";
+import { readLogEvent, startContainer } from "./test-helpers.ts";
 import { getFilePaths } from "./utils/file-paths.ts";
 import { idPattern } from "./utils/id.ts";
 
@@ -28,29 +32,13 @@ const UPLOAD_SERVER_PATH = fileURLToPath(
 const SECRET_URL =
   "https://deploy:demo-secret%21suffix@example.com/org/repo.git?access_token=demo-query-token#demo-fragment";
 
-async function readServerEvent(
-  lines: AsyncIterator<string>,
-  matches: (event: Record<string, unknown>) => boolean
-): Promise<Record<string, unknown>> {
-  for (;;) {
-    // biome-ignore lint/performance/noAwaitInLoops: Read server events in order until the expected event arrives.
-    const { value, done } = await lines.next();
-    if (done) {
-      throw new Error("Server stopped before the expected log event arrived.");
-    }
-    const event: Record<string, unknown> = JSON.parse(value);
-    if (matches(event)) {
-      return event;
-    }
-  }
-}
-
 test.each(["REDIS_URL", "WORKBENCH_USER", "WORKBENCH_PASS"])(
   "startup rejects missing %s",
   (missing) => {
     const result = spawnSync("bun", [UPLOAD_SERVER_PATH], {
       env: {
         ...process.env,
+        DATABASE_URL: "postgresql://test:test@127.0.0.1:1/test",
         PORT: "0",
         REDIS_URL: "redis://127.0.0.1:1",
         WORKBENCH_PASS: "test-password",
@@ -68,36 +56,18 @@ test.each(["REDIS_URL", "WORKBENCH_USER", "WORKBENCH_PASS"])(
   }
 );
 
-test("deploy uploads before publishing a BullMQ job and exposes its live state", async ({
+test("deploy persists status independently of BullMQ jobs, including upload failures", async ({
   onTestFinished,
 }) => {
-  const redisContainer = execFileSync(
-    "docker",
-    [
-      "run",
-      "--detach",
-      "--rm",
-      "--publish",
-      "127.0.0.1::6379",
-      "redis:8-alpine",
-      "redis-server",
-      "--save",
-      "",
-      "--appendonly",
-      "no",
-    ],
-    { encoding: "utf8", timeout: 30_000 }
-  ).trim();
-  onTestFinished(() => {
-    execFileSync("docker", ["rm", "--force", redisContainer], {
-      timeout: 10_000,
-    });
+  const { database, databaseUrl, sql } = await createTestDatabase({
+    onTestFinished,
   });
-  const redisAddress = execFileSync(
-    "docker",
-    ["port", redisContainer, "6379/tcp"],
-    { encoding: "utf8", timeout: 10_000 }
-  ).trim();
+  const { address: redisAddress } = startContainer({
+    command: ["redis-server", "--save", "", "--appendonly", "no"],
+    image: "redis:8-alpine",
+    onTestFinished,
+    port: 6379,
+  });
   const redisUrl = `redis://${redisAddress}`;
   const redis = createClient({ url: redisUrl });
   const redisErrors: Error[] = [];
@@ -107,6 +77,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
 
   const uploads = new Map<string, Buffer>();
   const queuedDuringUpload: number[] = [];
+  const statusesDuringUpload: string[] = [];
   let uploadsUntilFailure = Number.POSITIVE_INFINITY;
   let rejectedKey: string | undefined;
   const s3Server = createServer(async (request, response) => {
@@ -114,6 +85,13 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     const url = new URL(request.url ?? "/", "http://localhost");
     const uploadId = url.pathname.split("/")[3] ?? "";
     queuedDuringUpload.push(await redis.exists(`bull:jobs:${uploadId}`));
+    if (request.method === "PUT") {
+      const [deployment] = await database
+        .select()
+        .from(deployments)
+        .where(eq(deployments.id, uploadId));
+      statusesDuringUpload.push(deployment?.status ?? "missing");
+    }
     if (uploadsUntilFailure === 0) {
       rejectedKey = decodeURIComponent(url.pathname).replace(
         "/test-bucket/",
@@ -145,6 +123,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
       AWS_REGION: "us-east-1",
       AWS_SECRET_ACCESS_KEY: "test-secret-key",
       AWS_SESSION_TOKEN: "",
+      DATABASE_URL: databaseUrl,
       NODE_ENV: "production",
       PORT: "0",
       REDIS_URL: redisUrl,
@@ -189,7 +168,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
       .add(".")
       .commit("Initial commit");
 
-    const startup = await readServerEvent(
+    const startup = await readLogEvent(
       lines,
       (event) => event.action === "server_start"
     );
@@ -314,7 +293,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     expect(deploy.status).toBe(200);
     const deployResponse = await deploy.json();
 
-    const deployEvent = await readServerEvent(
+    const deployEvent = await readLogEvent(
       lines,
       (event) => event.action === "deploy"
     );
@@ -363,6 +342,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     );
 
     expect(queuedDuringUpload).toEqual(filePaths.map(() => 0));
+    expect(statusesDuringUpload).toEqual(filePaths.map(() => "uploading"));
     expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([id]);
     expect(await redis.hGet(`bull:jobs:${id}`, "name")).toBe("deploy");
     expect(
@@ -374,7 +354,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     expect(waitingStatus.headers.get("cache-control")).toBe("no-store");
     expect(await waitingStatus.json()).toEqual({ status: "waiting" });
 
-    // BullMQ transitions must be visible without writing a separate status hash.
+    // Queue transitions alone do not change the persisted deployment status.
     const worker = new Worker("jobs", undefined, {
       autorun: false,
       connection: { url: redisUrl },
@@ -385,11 +365,21 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     });
     const job = await worker.getNextJob("test-token", { block: false });
     expect(job.id).toBe(id);
+    const unchangedStatus = await fetch(new URL(`/status?id=${id}`, baseUrl));
+    expect(await unchangedStatus.json()).toEqual({ status: "waiting" });
+    await database
+      .update(deployments)
+      .set({ status: "active" })
+      .where(eq(deployments.id, id));
     const activeStatus = await fetch(new URL(`/status?id=${id}`, baseUrl));
     expect(activeStatus.status).toBe(200);
     expect(await activeStatus.json()).toEqual({ status: "active" });
 
     await job.moveToFailed(new Error("Test job failure"), "test-token", false);
+    await database
+      .update(deployments)
+      .set({ status: "failed" })
+      .where(eq(deployments.id, id));
     const failedStatus = await fetch(new URL(`/status?id=${id}`, baseUrl));
     expect(failedStatus.status).toBe(200);
     expect(await failedStatus.json()).toEqual({ status: "failed" });
@@ -397,14 +387,18 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     await job.retry();
     const retriedJob = await worker.getNextJob("retry-token", { block: false });
     await retriedJob.moveToCompleted(null, "retry-token", false);
+    await database
+      .update(deployments)
+      .set({ status: "completed" })
+      .where(eq(deployments.id, id));
     const completedStatus = await fetch(new URL(`/status?id=${id}`, baseUrl));
     expect(completedStatus.status).toBe(200);
     expect(await completedStatus.json()).toEqual({ status: "completed" });
 
     await retriedJob.remove();
     const removedStatus = await fetch(new URL(`/status?id=${id}`, baseUrl));
-    expect(removedStatus.status).toBe(404);
-    expect(await removedStatus.json()).toEqual({ message: "Upload not found" });
+    expect(removedStatus.status).toBe(200);
+    expect(await removedStatus.json()).toEqual({ status: "completed" });
     await worker.close();
 
     uploadsUntilFailure = 1;
@@ -423,7 +417,11 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     );
     const failedUploadId = String(failedUploadBody.id);
     expect(await redis.exists(`bull:jobs:${failedUploadId}`)).toBe(0);
-    const failedUploadEvent = await readServerEvent(
+    const failedUploadStatus = await fetch(
+      new URL(`/status?id=${failedUploadId}`, baseUrl)
+    );
+    expect(await failedUploadStatus.json()).toEqual({ status: "failed" });
+    const failedUploadEvent = await readLogEvent(
       errorLines,
       (event) => event.id === failedUploadId && event.action === "deploy"
     );
@@ -460,7 +458,11 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
       0
     );
     expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([]);
-    const failedCloneEvent = await readServerEvent(
+    const failedCloneStatus = await fetch(
+      new URL(`/status?id=${failedDeployBody.id}`, baseUrl)
+    );
+    expect(await failedCloneStatus.json()).toEqual({ status: "failed" });
+    const failedCloneEvent = await readLogEvent(
       errorLines,
       (event) => event.id === failedDeployBody.id && event.action === "deploy"
     );
@@ -490,7 +492,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
         typeof credentialBody === "object" &&
         "id" in credentialBody
     );
-    const credentialEvent = await readServerEvent(
+    const credentialEvent = await readLogEvent(
       errorLines,
       (event) => event.id === credentialBody.id && event.action === "deploy"
     );
@@ -502,10 +504,12 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
 
     // Deny BullMQ reads and scripts without changing its internal Redis keys.
     await redis.aclSetUser("default", ["-hgetall", "-evalsha", "-eval"]);
-    const unavailableStatus = await fetch(new URL(`/status?id=${id}`, baseUrl));
-    expect(unavailableStatus.status).toBe(503);
-    expect(await unavailableStatus.json()).toEqual({
-      message: "Upload status unavailable",
+    const redisUnavailableStatus = await fetch(
+      new URL(`/status?id=${id}`, baseUrl)
+    );
+    expect(redisUnavailableStatus.status).toBe(200);
+    expect(await redisUnavailableStatus.json()).toEqual({
+      status: "completed",
     });
     uploadsUntilFailure = Number.POSITIVE_INFINITY;
     const redisFailedDeploy = await fetch(new URL("/deploy", baseUrl), {
@@ -521,7 +525,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
         typeof redisFailedBody === "object" &&
         "id" in redisFailedBody
     );
-    const publishFailureEvent = await readServerEvent(
+    const publishFailureEvent = await readLogEvent(
       errorLines,
       (event) => event.id === redisFailedBody.id && event.action === "deploy"
     );
@@ -533,8 +537,31 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
       uploadedCount: filePaths.length,
     });
     expect(publishFailureEvent).not.toHaveProperty("currentKey");
+    const publishFailureStatus = await fetch(
+      new URL(`/status?id=${redisFailedBody.id}`, baseUrl)
+    );
+    expect(await publishFailureStatus.json()).toEqual({ status: "failed" });
+
+    await sql`ALTER TABLE deployments RENAME TO unavailable_deployments`;
+    const unavailableStatus = await fetch(new URL(`/status?id=${id}`, baseUrl));
+    expect(unavailableStatus.status).toBe(503);
+    expect(unavailableStatus.headers.get("cache-control")).toBe("no-store");
+    expect(await unavailableStatus.json()).toEqual({
+      message: "Upload status unavailable",
+    });
+    const uploadsBeforeDatabaseFailure = uploads.size;
+    const databaseFailedDeploy = await fetch(new URL("/deploy", baseUrl), {
+      body: JSON.stringify({ repoUrl }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    expect(databaseFailedDeploy.status).toBe(500);
+    expect(await databaseFailedDeploy.json()).toEqual({
+      id: expect.any(String),
+    });
+    expect(uploads.size).toBe(uploadsBeforeDatabaseFailure);
+    await sql`ALTER TABLE unavailable_deployments RENAME TO deployments`;
     expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([]);
-    expect(await redis.exists("status")).toBe(0);
     expect(redisErrors).toEqual([]);
   } finally {
     server.kill();

@@ -3,11 +3,15 @@ import { cors } from "@elysia/cors";
 import { openapi } from "@elysia/openapi";
 import { workbench } from "@getworkbench/elysia";
 import { createNodeRedisClient, Queue } from "bullmq";
+import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { initLogger, log as logger } from "evlog";
 import { evlog } from "evlog/elysia";
 import { createClient } from "redis";
 import { simpleGit } from "simple-git";
+import { postgresDb } from "./db/database.ts";
+import { markDeploymentFailed } from "./db/deployments.ts";
+import { deployments } from "./db/schema.ts";
 import { generateId, idPattern } from "./utils/id.ts";
 import {
   type UploadFolderProgress,
@@ -58,11 +62,18 @@ new Elysia()
       const id = generateId();
       const cloneDirectory = join("output/upload", id);
       let progress: UploadFolderProgress | undefined;
+      let deploymentCreated = false;
 
       log.set({ action: "deploy", id, stage: "clone" });
       try {
+        await postgresDb.insert(deployments).values({ id, status: "cloning" });
+        deploymentCreated = true;
         await simpleGit().clone(body.repoUrl, cloneDirectory);
         log.set({ stage: "scan" });
+        await postgresDb
+          .update(deployments)
+          .set({ status: "uploading" })
+          .where(eq(deployments.id, id));
         progress = await uploadFolderToS3({
           directoryPath: cloneDirectory,
           onProgress: (update) => {
@@ -72,10 +83,21 @@ new Elysia()
           prefix: `output/${id}`,
         });
         log.set({ stage: "publish" });
+        // Persist waiting before enqueueing so a fast worker cannot be overwritten.
+        await postgresDb
+          .update(deployments)
+          .set({ status: "waiting" })
+          .where(eq(deployments.id, id));
         await jobQueue.add("deploy", { uploadId: id }, { jobId: id });
         log.set({ stage: "complete" });
         return { id };
       } catch (error) {
+        if (deploymentCreated) {
+          await markDeploymentFailed({
+            from: ["cloning", "uploading", "waiting"],
+            id,
+          });
+        }
         log.error(error instanceof Error ? error : new Error(String(error)));
         return status(500, { id });
       } finally {
@@ -101,12 +123,14 @@ new Elysia()
       set.headers["cache-control"] = "no-store";
       log.set({ action: "upload-status", id: query.id });
       try {
-        const job = await jobQueue.getJob(query.id);
-        const currentStatus = job ? await job.getState() : "unknown";
-        if (currentStatus === "unknown") {
+        const [deployment] = await postgresDb
+          .select({ status: deployments.status })
+          .from(deployments)
+          .where(eq(deployments.id, query.id));
+        if (!deployment) {
           return status(404, { message: "Upload not found" });
         }
-        return { status: currentStatus };
+        return deployment;
       } catch (error) {
         log.error(error instanceof Error ? error : new Error(String(error)));
         return status(503, { message: "Upload status unavailable" });

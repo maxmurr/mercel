@@ -16,11 +16,12 @@ For source copies without `.git`, use `bun install --ignore-scripts` to skip
 Git hook installation.
 
 Set `WORKBENCH_PASS` in `.env` to the generated password. Keep any existing `.env`
-values you need. The dev and start scripts load `.env` when present. Start Redis,
-then the app:
+values you need. The dev and start scripts load `.env` when present. Start Redis
+and PostgreSQL, apply migrations, then start the app:
 
 ```sh
-docker compose up -d --wait redis
+docker compose up -d --wait redis postgres
+bun run db:migrate
 bun run dev
 ```
 
@@ -43,11 +44,12 @@ Configure `.env` using the S3 and AWS settings in `.env.example` and create the
 bucket first.
 
 After every S3 upload succeeds, the endpoint adds a `deploy` job to the BullMQ
-`jobs` queue with data `{ "uploadId": "<id>" }` and job ID `<id>`. BullMQ owns the
-job status; there is no separate application status hash.
+`jobs` queue with data `{ "uploadId": "<id>" }` and job ID `<id>`. The upload server
+and deploy worker persist deployment status in PostgreSQL's `deployments` table.
+BullMQ still manages queue execution and the Workbench dashboard.
 
 The endpoint returns `200` with `{ "id": "<id>" }` only after the queue publish
-succeeds. Clone, file-scan, upload, or Redis failures return `500` with the
+succeeds. Database, clone, file-scan, upload, or Redis failures return `500` with the
 generated `id`; files already uploaded remain in S3. Invalid request bodies
 return `422` before an ID is generated. The OpenAPI JSON spec is at `/openapi/json`.
 
@@ -63,18 +65,25 @@ GET /status?id=abc12
 { "status": "waiting" }
 ```
 
-Every poll loads the job by ID and calls BullMQ's `job.getState()`, reading the
-current state from Redis. Responses include `Cache-Control: no-store`. States
-include `waiting`, `active`, `completed`, and `failed`; there is no `uploaded`
-state. BullMQ updates these states as workers process jobs.
+Every poll reads PostgreSQL, not Redis. Responses include `Cache-Control: no-store`.
+The upload server records `cloning`, then `uploading`, then `waiting` before
+publishing the job. The worker records `active` when each attempt starts and
+`completed` only after every built file uploads. Either process records `failed`
+when its work fails, including failures before a job exists. A failure only
+records `failed` while the row still shows that attempt's status, so a stalled
+attempt cannot overwrite a newer one. Retried jobs stay `failed` until the worker
+starts the next attempt and records `active`.
 
-Completed and failed jobs remain available for polling until removed. If job
-retention or automatic removal is configured later, removed jobs return `404`.
+Status survives BullMQ job removal. Existing jobs without a database row gain one
+when the worker processes them; completed historical jobs are not backfilled.
+Writes are awaited, but PostgreSQL and Redis do not share a transaction. A process
+crash or failed database write can leave the last recorded status unchanged.
 
 Missing or malformed IDs return `422`. IDs must contain five letters or digits,
-matching `/deploy`. Unknown or removed IDs return `404` with
+matching `/deploy`. IDs without a database row return `404` with
 `{ "message": "Upload not found" }`.
-Redis read failures return `503` with `{ "message": "Upload status unavailable" }`.
+Database read failures return `503` with `{ "message": "Upload status unavailable" }`.
+Redis read failures do not affect polling.
 
 ## Request logging
 
@@ -127,11 +136,12 @@ are both `/jobs`, so dashboard assets and API requests stay under that path.
 
 Add application queues to the mount's `queues` array as needed. Start the deploy
 worker in another terminal with `bun run dev:deploy` or `bun run start:deploy`.
-It uses the same `REDIS_URL`, `S3_BUCKET`, and AWS settings as the upload server.
+It uses the same `DATABASE_URL`, `REDIS_URL`, `S3_BUCKET`, and AWS settings as the
+upload server. Both processes require `DATABASE_URL` and the database migrations.
 
 `src/deploy-worker.ts` runs without an HTTP listener. It logs `worker_start` when
 Redis is ready. On `SIGINT` or `SIGTERM`, it logs `worker_stopping`, stops taking
-jobs, and waits for active jobs to finish before exiting.
+jobs, waits for active jobs to finish, and closes its PostgreSQL pool before exiting.
 
 The deploy worker consumes `deploy` jobs from `jobs`, including jobs queued while
 it was offline. For each `{ "uploadId": "<id>" }`, it downloads `output/<id>/`
@@ -181,8 +191,9 @@ missing. Standalone scripts should call `await postgresDb.$client.close()` when
 finished.
 
 Define and export tables in `src/db/schema.ts` using `drizzle-orm/pg-core`.
-The schema starts empty; no application tables or migrations exist yet.
-After adding tables:
+The `deployments` table stores each deployment ID and its status. Apply the
+committed migration before starting the upload server or worker. After changing
+the schema:
 
 ```sh
 bun run db:generate  # Generate SQL migrations in drizzle/
@@ -260,9 +271,10 @@ extensions in local imports. Vitest runs `src/**/*.test.ts`, excluding cloned
 repositories in `output/`. Use `bun run test`, not `bun test`, which invokes
 Bun's own test runner. Tool scripts use `--bun` to run under Bun rather than Node.js.
 
-The deploy integration test starts an isolated `redis:8-alpine` Docker container
-on a random localhost port and removes it afterward. It uses a local HTTP S3
-stub and never connects to the Redis or S3 services in `.env`.
+Upload and worker integration tests start isolated `redis:8-alpine` and
+`postgres:18-alpine` Docker containers on random localhost ports, apply the
+committed database migrations, and remove the containers afterward. They use a
+local HTTP S3 stub and never connect to the services in `.env`.
 
 For CI, make Docker available, install with `bun install --frozen-lockfile`, then
 run `bun run typecheck` and `bun run test`.

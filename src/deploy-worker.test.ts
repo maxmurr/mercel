@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
@@ -9,7 +9,11 @@ import { createInterface } from "node:readline";
 import { buffer } from "node:stream/consumers";
 import { fileURLToPath } from "node:url";
 import { Queue, QueueEvents } from "bullmq";
+import { eq } from "drizzle-orm";
 import { expect, test } from "vitest";
+import { deployments } from "./db/schema.ts";
+import { createTestDatabase } from "./db/test-database.ts";
+import { readLogEvent, startContainer } from "./test-helpers.ts";
 
 const DEPLOY_WORKER_PATH = fileURLToPath(
   new URL("./deploy-worker.ts", import.meta.url)
@@ -17,7 +21,11 @@ const DEPLOY_WORKER_PATH = fileURLToPath(
 
 test("deploy worker rejects missing REDIS_URL", () => {
   const result = spawnSync("bun", [DEPLOY_WORKER_PATH], {
-    env: { ...process.env, REDIS_URL: "" },
+    env: {
+      ...process.env,
+      DATABASE_URL: "postgresql://test:test@127.0.0.1:1/test",
+      REDIS_URL: "",
+    },
     timeout: 5000,
   });
 
@@ -32,37 +40,32 @@ test.for(["SIGINT", "SIGTERM"] as const)(
   "deploy worker downloads, builds, and uploads BullMQ jobs, retries failures, rejects invalid jobs, and drains on %s",
   { timeout: 30_000 },
   async (signal, { onTestFinished }) => {
+    const { database, databaseUrl, sql } = await createTestDatabase({
+      onTestFinished,
+    });
+    const statusOf = async (id: string) => {
+      const [deployment] = await database
+        .select()
+        .from(deployments)
+        .where(eq(deployments.id, id));
+      return deployment?.status;
+    };
+    await database.insert(deployments).values(
+      ["abc12", "def34", "ghi56", "jkl78"].map((id) => ({
+        id,
+        status: "waiting" as const,
+      }))
+    );
     const directory = await mkdtemp(join(tmpdir(), "mercel-deploy-"));
     onTestFinished(async () => {
       await rm(directory, { force: true, recursive: true });
     });
-    const redisContainer = execFileSync(
-      "docker",
-      [
-        "run",
-        "--detach",
-        "--rm",
-        "--publish",
-        "127.0.0.1::6379",
-        "redis:8-alpine",
-        "redis-server",
-        "--save",
-        "",
-        "--appendonly",
-        "no",
-      ],
-      { encoding: "utf8", timeout: 30_000 }
-    ).trim();
-    onTestFinished(() => {
-      execFileSync("docker", ["rm", "--force", redisContainer], {
-        timeout: 10_000,
-      });
+    const { address: redisAddress } = startContainer({
+      command: ["redis-server", "--save", "", "--appendonly", "no"],
+      image: "redis:8-alpine",
+      onTestFinished,
+      port: 6379,
     });
-    const redisAddress = execFileSync(
-      "docker",
-      ["port", redisContainer, "6379/tcp"],
-      { encoding: "utf8", timeout: 10_000 }
-    ).trim();
     const redisUrl = `redis://${redisAddress}`;
     const queue = new Queue<unknown, number>("jobs", {
       connection: { url: redisUrl },
@@ -110,6 +113,7 @@ await symlink("index.html", "dist/link.html");`)
     }
     const shutdownDownload = Promise.withResolvers<ServerResponse>();
     const prefixes: string[] = [];
+    const statusesDuringDownload: string[] = [];
     const uploadedFiles = new Map<string, Buffer>();
     const uploadRequests: string[] = [];
     let failedKey = "output/ghi56/second.txt";
@@ -118,6 +122,9 @@ await symlink("index.html", "dist/link.html");`)
       if (url.searchParams.get("list-type") === "2") {
         const prefix = url.searchParams.get("prefix") ?? "";
         prefixes.push(prefix);
+        statusesDuringDownload.push(
+          (await statusOf(prefix.split("/")[1] ?? "")) ?? "missing"
+        );
         response.writeHead(200, { "Content-Type": "application/xml" });
         response.end(
           `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
@@ -181,6 +188,7 @@ await symlink("index.html", "dist/link.html");`)
         AWS_REGION: "us-east-1",
         AWS_SECRET_ACCESS_KEY: "test-secret-key",
         AWS_SESSION_TOKEN: "",
+        DATABASE_URL: databaseUrl,
         NODE_ENV: "production",
         REDIS_URL: redisUrl,
         S3_BUCKET: "test-bucket",
@@ -223,6 +231,10 @@ await symlink("index.html", "dist/link.html");`)
       "completed",
     ]);
     expect(prefixes).toEqual(["output/abc12/", "output/def34/"]);
+    expect(await statusOf("abc12")).toBe("completed");
+    expect(await statusOf("def34")).toBe("completed");
+    await queuedJob.remove();
+    expect(await statusOf("abc12")).toBe("completed");
     await Promise.all(
       [...files.entries()].slice(0, 3).map(async ([key, contents]) => {
         const relativePath = key.slice("output/".length);
@@ -280,6 +292,7 @@ await symlink("index.html", "dist/link.html");`)
       jobId: "ghi56",
       level: "error",
     });
+    expect(await statusOf("ghi56")).toBe("failed");
     const retryDirectory = join(directory, "output", "deploy", "ghi56");
     expect(await readFile(join(retryDirectory, "first.txt"), "utf8")).toBe(
       "first"
@@ -291,6 +304,7 @@ await symlink("index.html", "dist/link.html");`)
       failedJob.waitUntilFinished(queueEvents, 5000)
     ).rejects.toThrow();
     expect(await failedJob.getState()).toBe("failed");
+    expect(await statusOf("ghi56")).toBe("failed");
     // Fail-fast: no upload is attempted after the rejected key, whatever the directory order.
     expect(uploadRequests.at(-1)).toBe(failedKey);
     expect(uploadedFiles.has(failedKey)).toBe(false);
@@ -314,6 +328,7 @@ await symlink("index.html", "dist/link.html");`)
       jobId: "ghi56",
     });
 
+    expect(await statusOf("ghi56")).toBe("completed");
     expect(uploadedFiles.get("dist/ghi56/index.html")).toEqual(
       Buffer.from("built")
     );
@@ -328,6 +343,7 @@ await symlink("index.html", "dist/link.html");`)
       failedBuildJob.waitUntilFinished(queueEvents, 5000)
     ).rejects.toThrow();
     expect(await failedBuildJob.getState()).toBe("failed");
+    expect(await statusOf("ghi56")).toBe("failed");
     expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
       action: "deploy_failed",
       jobId: "failed-build",
@@ -347,6 +363,7 @@ await symlink("index.html", "dist/link.html");`)
       "Deploy download found no files for uploadId: empty"
     );
     expect(await emptyJob.getState()).toBe("failed");
+    expect(await statusOf("empty")).toBe("failed");
 
     const outsideFile = join(directory, "output", "keep.txt");
     await writeFile(outsideFile, "keep");
@@ -366,6 +383,37 @@ await symlink("index.html", "dist/link.html");`)
       })
     );
     expect(await readFile(outsideFile, "utf8")).toBe("keep");
+    expect(
+      await database.select().from(deployments).orderBy(deployments.id)
+    ).toEqual([
+      { id: "abc12", status: "completed" },
+      { id: "def34", status: "completed" },
+      { id: "empty", status: "failed" },
+      { id: "ghi56", status: "failed" },
+      { id: "jkl78", status: "waiting" },
+    ]);
+
+    await sql`ALTER TABLE deployments RENAME TO unavailable_deployments`;
+    const databaseFailedJob = await queue.add(
+      "deploy",
+      { uploadId: "nodb1" },
+      { jobId: "nodb1" }
+    );
+    await expect(
+      databaseFailedJob.waitUntilFinished(queueEvents, 5000)
+    ).rejects.toThrow();
+    expect(await databaseFailedJob.getState()).toBe("failed");
+    expect(
+      await readLogEvent(
+        errors,
+        (event) => event.action === "deployment_status_failed"
+      )
+    ).toMatchObject({ id: "nodb1", level: "error" });
+    expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
+      action: "deploy_failed",
+      jobId: "nodb1",
+    });
+    await sql`ALTER TABLE unavailable_deployments RENAME TO deployments`;
     expect(prefixes).toEqual([
       "output/abc12/",
       "output/def34/",
@@ -382,6 +430,7 @@ await symlink("index.html", "dist/link.html");`)
     );
     const shutdownResponse = await shutdownDownload.promise;
     expect(await shutdownJob.getState()).toBe("active");
+    expect(await statusOf("jkl78")).toBe("active");
     expect(worker.kill(signal)).toBe(true);
     expect(JSON.parse((await lines.next()).value ?? "null")).toMatchObject({
       action: "worker_stopping",
@@ -418,6 +467,8 @@ await symlink("index.html", "dist/link.html");`)
       Buffer.from([0, 255, 1])
     );
     expect(uploadedFiles.get("dist/jkl78/.nojekyll")).toEqual(Buffer.alloc(0));
+    expect(await statusOf("jkl78")).toBe("completed");
+    expect(statusesDuringDownload).toEqual(prefixes.map(() => "active"));
     expect(queueErrors).toEqual([]);
   }
 );
