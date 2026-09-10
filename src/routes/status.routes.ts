@@ -1,6 +1,7 @@
 import type { Queue } from "bullmq";
 import { Elysia, t } from "elysia";
 import { evlog } from "evlog/elysia";
+import { idPattern } from "../utils/id.ts";
 
 /** Reads upload status from the server-owned job queue without caching responses. */
 export const createStatusRoutes = (
@@ -24,7 +25,7 @@ export const createStatusRoutes = (
       }
     },
     {
-      query: t.Object({ id: t.String({ pattern: "^[0-9A-Za-z]{5}$" }) }),
+      query: t.Object({ id: t.String({ pattern: idPattern.source }) }),
       response: {
         200: t.Object({ status: t.String() }),
         404: t.Object({ message: t.String() }),

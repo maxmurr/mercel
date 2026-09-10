@@ -4,6 +4,7 @@ import { Worker } from "bullmq";
 import { Elysia } from "elysia";
 import { initLogger, log as logger } from "evlog";
 import { downloadFolderFromS3 } from "./utils/download-folder-from-s3.ts";
+import { idPattern } from "./utils/id.ts";
 
 initLogger({
   env: { service: "mercel-deploy-server" },
@@ -18,7 +19,13 @@ if (!REDIS_URL) {
   throw new Error("Deploy server configuration missing: set REDIS_URL.");
 }
 
-const uploadIdPattern = /^[0-9A-Za-z]{5}$/;
+const isDeployJobData = (data: unknown): data is { uploadId: string } =>
+  typeof data === "object" &&
+  data !== null &&
+  "uploadId" in data &&
+  typeof data.uploadId === "string" &&
+  idPattern.test(data.uploadId);
+
 const jobWorker = new Worker<unknown, number>(
   "jobs",
   async (job) => {
@@ -26,14 +33,10 @@ const jobWorker = new Worker<unknown, number>(
       throw new Error("Deploy job name must be deploy.");
     }
     const { data } = job;
-    if (
-      !data ||
-      typeof data !== "object" ||
-      !("uploadId" in data) ||
-      typeof data.uploadId !== "string" ||
-      !uploadIdPattern.test(data.uploadId)
-    ) {
-      throw new Error("Deploy job uploadId must be five letters or digits.");
+    if (!isDeployJobData(data)) {
+      throw new Error(
+        "Deploy job data must be an object whose uploadId is five letters or digits."
+      );
     }
 
     const directoryPath = join("output", "deploy", data.uploadId);
@@ -52,7 +55,7 @@ const jobWorker = new Worker<unknown, number>(
   },
   { connection: { url: REDIS_URL } }
 );
-jobWorker.on("error", (error: Error) => logger.error("queue", error.message));
+jobWorker.on("error", (error) => logger.error("queue", error.message));
 jobWorker.on("completed", (job, fileCount) => {
   logger.info({
     action: "download_completed",

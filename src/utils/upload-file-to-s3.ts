@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { basename } from "node:path";
-import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
+import { s3 } from "./s3.ts";
 
 /**
  * Options for uploading a local file to S3.
@@ -20,9 +20,6 @@ interface UploadFileToS3Options {
    */
   key?: string;
 }
-
-const endpoint = process.env.S3_ENDPOINT;
-const s3 = new S3Client(endpoint ? { endpoint, forcePathStyle: true } : {});
 
 /**
  * Uploads a local file to S3, overwriting an existing key.

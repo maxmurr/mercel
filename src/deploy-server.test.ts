@@ -69,8 +69,8 @@ test("deploy server downloads BullMQ jobs, retries partial downloads, and reject
     connection: { url: redisUrl },
   });
   const queueErrors: Error[] = [];
-  queue.on("error", (error: Error) => queueErrors.push(error));
-  queueEvents.on("error", (error: Error) => queueErrors.push(error));
+  queue.on("error", (error) => queueErrors.push(error));
+  queueEvents.on("error", (error) => queueErrors.push(error));
   onTestFinished(async () => {
     await queueEvents.close();
     await queue.close();

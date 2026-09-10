@@ -1,5 +1,8 @@
 import { customAlphabet } from "nanoid";
 
+/** Matches an ID from generateId with the default length. */
+export const idPattern = /^[0-9A-Za-z]{5}$/;
+
 /**
  * Options for generating a random alphanumeric ID.
  */

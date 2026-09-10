@@ -1,29 +1,26 @@
 import { lstat, mkdir, open, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
-import {
-  GetObjectCommand,
-  paginateListObjectsV2,
-  S3Client,
-} from "@aws-sdk/client-s3";
+import { GetObjectCommand, paginateListObjectsV2 } from "@aws-sdk/client-s3";
+import { s3 } from "./s3.ts";
 
 /** Options for downloading an S3 folder into a local directory. */
 interface DownloadFolderFromS3Options {
   /**
-   * The local destination directory. Relative paths resolve from the current working directory.
-   * Existing files are not overwritten.
+   * The local destination directory, created if missing. Relative paths resolve from the current working directory.
+   * Downloading onto an existing file throws instead of overwriting it.
    * @example "output/abc12"
    */
   directoryPath: string;
   /**
-   * The S3 folder prefix, with or without a trailing slash. Leading slashes are preserved.
-   * @example "/output/abc12"
+   * The S3 folder prefix without a leading slash, with or without a trailing slash.
+   * @example "output/abc12"
    */
   prefix: string;
 }
 
-/** Options for mapping an S3 object key to a safe local file path. */
-interface CreateS3DownloadPathOptions {
+/** Options for preparing the local file path that receives an S3 object. */
+interface PrepareDownloadFilePathOptions {
   /** The absolute local destination directory. */
   directoryPath: string;
   /** The S3 object key to download. */
@@ -32,29 +29,26 @@ interface CreateS3DownloadPathOptions {
   prefix: string;
 }
 
-const endpoint = process.env.S3_ENDPOINT;
-const s3 = new S3Client(endpoint ? { endpoint, forcePathStyle: true } : {});
 const unsafePathCharacters = /[\\\0:]/;
 
 /**
- * Creates parent directories without following symlinks below the destination.
+ * Maps an S3 object key to a local file path, creating parent directories without following symlinks.
  * @param options The destination, S3 key, and folder prefix.
  * @returns The local file path with the S3 prefix removed.
  * @throws If the key contains unsafe path segments or a parent directory is a symlink.
  * @example
- * await createS3DownloadPath({ directoryPath: "/tmp/site", key: "site/src/main.ts", prefix: "site/" });
+ * await prepareDownloadFilePath({ directoryPath: "/tmp/site", key: "site/src/main.ts", prefix: "site/" });
  */
-async function createS3DownloadPath({
+async function prepareDownloadFilePath({
   directoryPath,
   key,
   prefix,
-}: CreateS3DownloadPathOptions): Promise<string> {
+}: PrepareDownloadFilePathOptions): Promise<string> {
   const parts = key.slice(prefix.length).split("/");
-  if (
-    !key.startsWith(prefix) ||
-    parts.some((part) => ["", ".", ".."].includes(part)) ||
-    unsafePathCharacters.test(parts.join("/"))
-  ) {
+  const isOutsidePrefix = !key.startsWith(prefix);
+  const hasUnsafeSegment = parts.some((part) => ["", ".", ".."].includes(part));
+  const hasUnsafeCharacter = unsafePathCharacters.test(parts.join("/"));
+  if (isOutsidePrefix || hasUnsafeSegment || hasUnsafeCharacter) {
     throw new Error(`S3 download unsafe object key: ${key}`);
   }
 
@@ -82,7 +76,7 @@ async function createS3DownloadPath({
  * @returns The number of files downloaded, or zero if the prefix has no files.
  * @throws If configuration is missing, a path is unsafe, a file already exists, or listing or downloading fails.
  * @example
- * await downloadFolderFromS3({ prefix: "/output/abc12", directoryPath: "output/abc12" });
+ * await downloadFolderFromS3({ prefix: "output/abc12", directoryPath: "output/abc12" });
  */
 export async function downloadFolderFromS3({
   prefix,
@@ -110,7 +104,7 @@ export async function downloadFolderFromS3({
         continue;
       }
       // biome-ignore lint/performance/noAwaitInLoops: Download one file at a time to bound open streams.
-      const filePath = await createS3DownloadPath({
+      const filePath = await prepareDownloadFilePath({
         directoryPath: destination,
         key,
         prefix: folderPrefix,
