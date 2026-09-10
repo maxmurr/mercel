@@ -62,7 +62,6 @@ export async function buildStaticApp({
           TMPDIR: process.env.TMPDIR,
         },
         maxBuffer: BUILD_OUTPUT_MAX_BYTES,
-        // ponytail: timeout kills only the direct npm process; spawn detached and kill the process group if orphaned build tools become a problem.
         timeout: BUILD_COMMAND_TIMEOUT_MS,
       });
     } catch (error) {
