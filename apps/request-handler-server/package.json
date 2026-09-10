@@ -1,0 +1,27 @@
+{
+  "name": "@repo/request-handler-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/request-handler-server.ts --target=bun --packages=external --outdir=dist",
+    "check": "bun --bun ultracite check .",
+    "dev": "bun --watch src/request-handler-server.ts",
+    "fix": "bun --bun ultracite fix .",
+    "start": "bun src/request-handler-server.ts",
+    "test": "bun --bun vitest run --config ../../vitest.config.ts",
+    "test:watch": "bun --bun vitest --config ../../vitest.config.ts",
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@repo/utils": "workspace:*",
+    "elysia": "catalog:",
+    "evlog": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

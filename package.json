@@ -3,58 +3,62 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "check": "bun --bun ultracite check",
-    "db:generate": "bun --bun drizzle-kit generate",
-    "db:migrate": "bun --bun drizzle-kit migrate",
-    "db:push": "bun --bun drizzle-kit push",
-    "db:studio": "bun --bun drizzle-kit studio",
-    "dev": "bun --watch src/upload-server.ts",
-    "dev:deploy": "bun --watch src/deploy-worker.ts",
-    "dev:request": "bun --watch src/request-handler-server.ts",
-    "fix": "bun --bun ultracite fix",
+    "build": "turbo run build",
+    "check": "turbo run check check:root",
+    "check:root": "bun --bun ultracite check package.json turbo.json tsconfig.base.json vitest.config.ts biome.jsonc .vscode/settings.json",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "turbo run db:migrate",
+    "db:push": "turbo run db:push",
+    "db:studio": "turbo run db:studio",
+    "dev": "turbo run dev",
+    "dev:deploy": "turbo run dev --filter=@repo/deploy-worker",
+    "dev:request": "turbo run dev --filter=@repo/request-handler-server",
+    "dev:upload": "turbo run dev --filter=@repo/upload-server",
+    "fix": "turbo run fix fix:root",
+    "fix:root": "bun --bun ultracite fix package.json turbo.json tsconfig.base.json vitest.config.ts biome.jsonc .vscode/settings.json",
     "lint:commit": "bun --bun commitlint",
     "prepare": "bun --bun lefthook install",
-    "start": "bun src/upload-server.ts",
-    "start:deploy": "bun src/deploy-worker.ts",
-    "start:request": "bun src/request-handler-server.ts",
-    "test": "bun --bun vitest run",
-    "test:watch": "bun --bun vitest",
-    "typecheck": "bun --bun tsc --noEmit"
+    "start": "turbo run start",
+    "start:deploy": "turbo run start --filter=@repo/deploy-worker",
+    "start:request": "turbo run start --filter=@repo/request-handler-server",
+    "start:upload": "turbo run start --filter=@repo/upload-server",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch",
+    "typecheck": "turbo run typecheck"
   },
   "commitlint": {
     "extends": [
       "@commitlint/config-conventional"
     ]
   },
-  "dependencies": {
-    "@aws-sdk/client-s3": "^3.1129.0",
-    "@aws-sdk/lib-storage": "^3.1129.0",
-    "@elysia/cors": "^1.4.2",
-    "@elysia/openapi": "^1.4.16",
-    "@getworkbench/elysia": "^0.9.1",
-    "bullmq": "^6.3.4",
-    "drizzle-orm": "^0.45.2",
-    "elysia": "^1.4.30",
-    "evlog": "^2.28.1",
-    "nanoid": "^6.0.1",
-    "redis": "^6.2.1",
-    "simple-git": "^3.36.0"
-  },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
-    "@types/bun": "^1.4.2",
-    "drizzle-kit": "^0.31.10",
     "lefthook": "^2.1.12",
-    "postgres": "^3.4.9",
-    "typescript": "^7.0.2",
+    "turbo": "^2.10.12",
+    "typescript": "catalog:",
     "ultracite": "7.11.1",
-    "vitest": "^5.0.0"
+    "vitest": "catalog:"
   },
   "packageManager": "bun@1.4.2",
   "engines": {
     "bun": ">=1.4.0"
+  },
+  "catalog": {
+    "@aws-sdk/client-s3": "^3.1129.0",
+    "@aws-sdk/lib-storage": "^3.1129.0",
+    "@types/bun": "^1.4.2",
+    "bullmq": "^6.3.4",
+    "drizzle-orm": "^0.45.2",
+    "elysia": "^1.4.30",
+    "evlog": "^2.28.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
   }
 }

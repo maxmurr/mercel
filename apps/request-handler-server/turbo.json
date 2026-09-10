@@ -1,0 +1,23 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "NODE_ENV",
+        "PORT",
+        "S3_BUCKET",
+        "S3_ENDPOINT",
+        "AWS_*"
+      ]
+    },
+    "start": {
+      "passThroughEnv": [
+        "NODE_ENV",
+        "PORT",
+        "S3_BUCKET",
+        "S3_ENDPOINT",
+        "AWS_*"
+      ]
+    }
+  }
+}

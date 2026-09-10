@@ -1,0 +1,33 @@
+{
+  "name": "@repo/utils",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./build-app": "./src/build-app.ts",
+    "./download-folder-from-s3": "./src/download-folder-from-s3.ts",
+    "./file-paths": "./src/file-paths.ts",
+    "./id": "./src/id.ts",
+    "./s3": "./src/s3.ts",
+    "./test-helpers": "./src/test-helpers.ts",
+    "./upload-file-to-s3": "./src/upload-file-to-s3.ts",
+    "./upload-folder-to-s3": "./src/upload-folder-to-s3.ts"
+  },
+  "scripts": {
+    "check": "bun --bun ultracite check .",
+    "fix": "bun --bun ultracite fix .",
+    "test": "bun --bun vitest run --config ../../vitest.config.ts",
+    "test:watch": "bun --bun vitest --config ../../vitest.config.ts",
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/lib-storage": "catalog:",
+    "nanoid": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

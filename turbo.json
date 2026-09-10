@@ -1,0 +1,72 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"],
+      "outputs": ["dist/**"]
+    },
+    "transit": { "dependsOn": ["^transit"] },
+    "typecheck": {
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"]
+    },
+    "check": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.jsonc"]
+    },
+    "//#check:root": {
+      "inputs": [
+        "package.json",
+        "turbo.json",
+        "tsconfig.base.json",
+        "vitest.config.ts",
+        "biome.jsonc",
+        ".vscode/settings.json"
+      ]
+    },
+    "fix": { "cache": false },
+    "//#fix:root": { "cache": false },
+    "dev": { "cache": false, "persistent": true },
+    "start": { "cache": false, "persistent": true },
+    "test": {
+      "cache": false,
+      "passThroughEnv": [
+        "CI",
+        "DOCKER_HOST",
+        "DOCKER_CONTEXT",
+        "DOCKER_CONFIG",
+        "DOCKER_CERT_PATH",
+        "DOCKER_TLS_VERIFY"
+      ]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true,
+      "interactive": true,
+      "passThroughEnv": [
+        "DOCKER_HOST",
+        "DOCKER_CONTEXT",
+        "DOCKER_CONFIG",
+        "DOCKER_CERT_PATH",
+        "DOCKER_TLS_VERIFY"
+      ]
+    },
+    "db:generate": {
+      "cache": false,
+      "interactive": true,
+      "passThroughEnv": ["DATABASE_URL"]
+    },
+    "db:migrate": { "cache": false, "passThroughEnv": ["DATABASE_URL"] },
+    "db:push": {
+      "cache": false,
+      "interactive": true,
+      "passThroughEnv": ["DATABASE_URL"]
+    },
+    "db:studio": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["DATABASE_URL"]
+    }
+  }
+}

@@ -1,6 +1,22 @@
 # mercel
 
-TypeScript server using Elysia on Bun, with Vitest for testing.
+Bun and Turborepo workspace with three services and shared TypeScript packages.
+
+```text
+apps/
+  upload-server/          # Elysia deployment API and Workbench, port 3000
+  deploy-worker/          # BullMQ download, build, and upload worker
+  request-handler-server/ # Elysia static file server, port 3001
+packages/
+  db/                    # PostgreSQL client, schema, and Drizzle migrations
+  utils/                 # IDs, file operations, S3, builds, and test helpers
+```
+
+Apps import shared code through `@repo/db/*` and `@repo/utils/*` exports.
+The request handler only needs utils, not PostgreSQL or Redis. Packages export
+TypeScript directly for Bun; no library build step or barrel files.
+Shared dependency versions live in the root `package.json` catalog. Packages use
+`catalog:` for those dependencies and `workspace:*` for internal packages.
 
 ## Run
 
@@ -8,29 +24,42 @@ Install [Bun](https://bun.sh/docs/installation) 1.4.0 or later and Git, then:
 
 ```sh
 bun install
-cp -n .env.example .env
+cp -n apps/upload-server/.env.example apps/upload-server/.env
+cp -n apps/deploy-worker/.env.example apps/deploy-worker/.env
+cp -n apps/request-handler-server/.env.example apps/request-handler-server/.env
+cp -n packages/db/.env.example packages/db/.env
+cp -n .env.compose.example .env.compose
 openssl rand -hex 24
 ```
 
 For source copies without `.git`, use `bun install --ignore-scripts` to skip
 Git hook installation.
 
-Set `WORKBENCH_PASS` in `.env` to the generated password. Keep any existing `.env`
-values you need. The dev and start scripts load `.env` when present. Start Redis
-and PostgreSQL, apply migrations, then start the app:
+Set `WORKBENCH_PASS` in `apps/upload-server/.env` to the generated password.
+Keep the database, Redis, and S3 settings consistent between services that use
+them. Bun loads each app's `.env` from its package directory. Drizzle Kit loads
+`packages/db/.env`; Docker Compose uses `.env.compose`. When migrating from the
+single-package layout, move existing values into these files and archive the old
+root `.env` so Bun does not inject it into every app.
+
+Start local services, create the `mercel` bucket at `http://localhost:9001`, apply
+migrations, then run all three apps:
 
 ```sh
-docker compose up -d --wait redis postgres
+docker compose --env-file .env.compose up -d --wait
 bun run db:migrate
 bun run dev
 ```
 
 `GET http://localhost:3000/` returns `Hello Elysia`.
-Edit `src/upload-server.ts`; development mode restarts on changes.
+Edit `apps/upload-server/src/upload-server.ts`; development mode restarts on changes.
+Use `bun run dev:upload`, `bun run dev:deploy`, or `bun run dev:request` to run
+one app. App scratch files now live under each app's `output/` directory, not
+root `output/`; existing root scratch files are left untouched.
 
 CORS allows all origins and handles `OPTIONS` preflight requests. Credentials are
 disabled. Before enabling credentials, replace `origin: "*"` in
-`src/upload-server.ts` with an explicit allowlist of trusted frontend origins.
+`apps/upload-server/src/upload-server.ts` with an explicit allowlist of trusted frontend origins.
 
 ## API docs
 
@@ -40,7 +69,7 @@ the repository with `simple-git` into `output/upload/<id>` relative to the serve
 working directory, lists its files, then uploads each file to `S3_BUCKET` using
 keys `output/<id>/<relative-file-path>`, without a leading slash. Nested
 paths and hidden files, including `.git`, are preserved; symlinks are skipped.
-Configure `.env` using the S3 and AWS settings in `.env.example` and create the
+Configure `apps/upload-server/.env` using its `.env.example` and create the
 bucket first.
 
 After every S3 upload succeeds, the endpoint adds a `deploy` job to the BullMQ
@@ -87,7 +116,7 @@ Redis read failures do not affect polling.
 
 ## Request logging
 
-`src/upload-server.ts` initializes evlog with service name `mercel-upload-server`
+`apps/upload-server/src/upload-server.ts` initializes evlog with service name `mercel-upload-server`
 and registers `evlog()` before other plugins and routes. Requests emit a wide
 event with method,
 path, status, duration, and request ID. Output is pretty-printed in development
@@ -124,22 +153,22 @@ use `log` from `evlog` instead. No external drain is configured. Add `drain`,
 ## Workbench
 
 Open `http://localhost:3000/jobs` and sign in with `WORKBENCH_USER` and
-`WORKBENCH_PASS` from `.env`. Startup fails if either credential or `REDIS_URL`
+`WORKBENCH_PASS` from `apps/upload-server/.env`. Startup fails if either credential or `REDIS_URL`
 is missing. Use HTTPS outside local development; HTTP basic auth does not encrypt
 credentials.
 
-`src/upload-server.ts` connects a shared Redis publisher using `REDIS_URL`
+`apps/upload-server/src/upload-server.ts` connects a shared Redis publisher using `REDIS_URL`
 before listening. The BullMQ `jobs` queue uses that connection through its node-redis
 adapter. Commands reject while disconnected instead of waiting in an offline
 queue. `/deploy` jobs appear in Workbench at `/jobs`. The mount path and `basePath`
 are both `/jobs`, so dashboard assets and API requests stay under that path.
 
-Add application queues to the mount's `queues` array as needed. Start the deploy
-worker in another terminal with `bun run dev:deploy` or `bun run start:deploy`.
+Add application queues to the mount's `queues` array as needed. To run only the
+deploy worker, use `bun run dev:deploy` or `bun run start:deploy`.
 It uses the same `DATABASE_URL`, `REDIS_URL`, `S3_BUCKET`, and AWS settings as the
 upload server. Both processes require `DATABASE_URL` and the database migrations.
 
-`src/deploy-worker.ts` runs without an HTTP listener. It logs `worker_start` when
+`apps/deploy-worker/src/deploy-worker.ts` runs without an HTTP listener. It logs `worker_start` when
 Redis is ready. On `SIGINT` or `SIGTERM`, it logs `worker_stopping`, stops taking
 jobs, waits for active jobs to finish, and closes its PostgreSQL pool before exiting.
 
@@ -150,7 +179,7 @@ nested paths. IDs must contain five letters or digits. Each attempt clears that
 job's local directory first, so retries restart partial downloads and builds.
 
 After downloading, the worker calls `buildApp({ directoryPath, preset: "vite" })`
-from `src/utils/build-app.ts`. The required `preset` option currently supports
+from `@repo/utils/build-app`. The required `preset` option currently supports
 only `"vite"`; unsupported presets fail before any install or build runs.
 The Vite preset expects a static app with a root `package.json`,
 `package-lock.json`, and a `build` script that writes `dist/`.
@@ -181,33 +210,36 @@ before accepting untrusted repositories.
 
 ## Database
 
-Drizzle uses Bun's native PostgreSQL driver. Set `DATABASE_URL` in `.env` using
-`.env.example`, then start PostgreSQL:
+Drizzle uses Bun's native PostgreSQL driver. Set `DATABASE_URL` in
+`packages/db/.env` for database commands and in each consuming app's `.env`, then
+start PostgreSQL:
 
 ```sh
-docker compose up -d --wait postgres
+docker compose --env-file .env.compose up -d --wait postgres
 ```
 
-Import `postgresDb` from `src/db/database.ts` for queries. It shares a connection
+Import `postgresDb` from `@repo/db/database` for queries. It shares a connection
 pool and connects on the first query. Importing it fails if `DATABASE_URL` is
 missing. Standalone scripts should call `await postgresDb.$client.close()` when
 finished.
 
-Define and export tables in `src/db/schema.ts` using `drizzle-orm/pg-core`.
+Define and export tables in `packages/db/src/schema.ts` using `drizzle-orm/pg-core`.
+Apps import them from `@repo/db/schema`.
 The `deployments` table stores each deployment ID and its status. Apply the
 committed migration before starting the upload server or worker. After changing
 the schema:
 
 ```sh
-bun run db:generate  # Generate SQL migrations in drizzle/
+bun run db:generate  # Generate SQL migrations in packages/db/drizzle/
 bun run db:migrate   # Apply pending migrations
 bun run db:studio    # Browse the database locally
 ```
 
-Review generated SQL before applying it and commit the `drizzle/` directory.
+Review generated SQL before applying it and commit `packages/db/drizzle/`.
 For local schema experiments, `bun run db:push` applies changes without migration
-files. Use migrations for shared databases. All database commands run under Bun
-and load `.env`. Drizzle Kit uses the `postgres` dev dependency; application
+files. Use migrations for shared databases. Turbo runs database commands inside
+`packages/db`, under Bun, loading that package's `.env`. Schema-changing commands
+are never cached. Drizzle Kit uses the `postgres` dev dependency; application
 queries use Bun's native driver. No dotenv package is needed.
 
 ## Local services
@@ -215,7 +247,7 @@ queries use Bun's native driver. No dotenv package is needed.
 Start PostgreSQL, Redis, and RustFS with Docker Compose:
 
 ```sh
-docker compose up -d --wait
+docker compose --env-file .env.compose up -d --wait
 ```
 
 - PostgreSQL: `localhost:5432`, database and user `mercel`
@@ -226,11 +258,11 @@ docker compose up -d --wait
 - RustFS secret key: `mercel-local-secret`
 
 These credentials are for local development only. Override `RUSTFS_ACCESS_KEY`
-and `RUSTFS_SECRET_KEY` in `.env` if needed. Ports bind only to localhost.
+and `RUSTFS_SECRET_KEY` in `.env.compose` if needed. Ports bind only to localhost.
 Create buckets through the RustFS console; use path-style addressing in S3 clients.
 
 ```sh
-docker compose down
+docker compose --env-file .env.compose down
 ```
 
 Stopping services preserves PostgreSQL, Redis, and object data in named Docker volumes.
@@ -260,24 +292,42 @@ printf '%s\n' 'feat: add upload retries' | bun run lint:commit
 ## Commands
 
 ```sh
-bun run start       # Run without watching
-bun run typecheck   # Check TypeScript without emitting files
-bun run test        # Run Vitest once; requires Docker
-bun run test:watch  # Rerun Vitest on changes
-bun run check       # Check lint and formatting
-bun run fix         # Fix lint and formatting
-PORT=4000 bun run dev
+bun run start       # Run all three apps without watching
+bun run build       # Emit each app entrypoint into its dist/ directory
+bun run typecheck   # Check TypeScript in every package
+bun run test        # Run each package's Vitest suite; requires Docker
+bun run test:watch  # Watch each package's tests
+bun run check       # Check packages and root tooling config
+bun run fix         # Fix packages and root tooling config
+PORT=4000 bun run dev:upload
+bun run test --filter=@repo/utils
+bun run build --filter=@repo/upload-server
 ```
 
-Bun runs TypeScript directly. No build step required. Use explicit `.ts`
-extensions in local imports. Vitest runs `src/**/*.test.ts`, excluding cloned
-repositories in `output/`. Use `bun run test`, not `bun test`, which invokes
-Bun's own test runner. Tool scripts use `--bun` to run under Bun rather than Node.js.
+Root scripts delegate package tasks to `turbo run`. Package scripts own their
+commands. Root lint/fix tasks cover only root tooling files; Git hooks and
+commitlint remain repository-wide tools. Typechecks use transit tasks so shared
+source changes invalidate dependent caches without serializing the checks.
+Tests are uncached because integration suites use Docker and external tools.
+Turbo passes runtime variables only to apps that need them; build output does
+not inline environment variables.
+
+Bun runs TypeScript directly, so dev and start need no build. Optional builds
+emit JavaScript with external package imports; keep workspace packages and
+installed dependencies available when running `bun dist/<app-name>.js` from an
+app directory. Build artifacts are not standalone bundles.
+
+Use explicit `.ts` extensions in local imports and extensionless exported
+subpaths for workspace imports. Each package runs the shared `vitest.config.ts`
+against its own `src/**/*.test.ts`; cloned repositories under `output/` fall
+outside that glob.
+Use `bun run test`, not `bun test`, which invokes Bun's own test runner.
+Tool scripts use `--bun` to run under Bun rather than Node.js.
 
 Upload and worker integration tests start isolated `redis:8-alpine` and
 `postgres:18-alpine` Docker containers on random localhost ports, apply the
 committed database migrations, and remove the containers afterward. They use a
-local HTTP S3 stub and never connect to the services in `.env`.
+local HTTP S3 stub and never connect to the services in app `.env` files.
 
 For CI, make Docker available, install with `bun install --frozen-lockfile`, then
 run `bun run typecheck` and `bun run test`.

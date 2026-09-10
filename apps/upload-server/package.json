@@ -1,0 +1,34 @@
+{
+  "name": "@repo/upload-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/upload-server.ts --target=bun --packages=external --outdir=dist",
+    "check": "bun --bun ultracite check .",
+    "dev": "bun --watch src/upload-server.ts",
+    "fix": "bun --bun ultracite fix .",
+    "start": "bun src/upload-server.ts",
+    "test": "bun --bun vitest run --config ../../vitest.config.ts",
+    "test:watch": "bun --bun vitest --config ../../vitest.config.ts",
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "@elysia/cors": "^1.4.2",
+    "@elysia/openapi": "^1.4.16",
+    "@getworkbench/elysia": "^0.9.1",
+    "@repo/db": "workspace:*",
+    "@repo/utils": "workspace:*",
+    "bullmq": "catalog:",
+    "drizzle-orm": "catalog:",
+    "elysia": "catalog:",
+    "evlog": "catalog:",
+    "redis": "^6.2.1",
+    "simple-git": "^3.36.0"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

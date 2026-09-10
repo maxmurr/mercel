@@ -1,0 +1,27 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "S3_BUCKET",
+        "S3_ENDPOINT",
+        "AWS_*",
+        "CI"
+      ]
+    },
+    "start": {
+      "passThroughEnv": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "S3_BUCKET",
+        "S3_ENDPOINT",
+        "AWS_*",
+        "CI"
+      ]
+    }
+  }
+}

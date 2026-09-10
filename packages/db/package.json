@@ -1,0 +1,35 @@
+{
+  "name": "@repo/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./database": "./src/database.ts",
+    "./deployments": "./src/deployments.ts",
+    "./schema": "./src/schema.ts",
+    "./test-database": "./src/test-database.ts"
+  },
+  "scripts": {
+    "check": "bun --bun ultracite check .",
+    "db:generate": "bun --bun drizzle-kit generate",
+    "db:migrate": "bun --bun drizzle-kit migrate",
+    "db:push": "bun --bun drizzle-kit push",
+    "db:studio": "bun --bun drizzle-kit studio",
+    "fix": "bun --bun ultracite fix .",
+    "test": "bun --bun vitest run --config ../../vitest.config.ts",
+    "test:watch": "bun --bun vitest --config ../../vitest.config.ts",
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/utils": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "evlog": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "drizzle-kit": "^0.31.10",
+    "postgres": "^3.4.9",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "NODE_ENV",
+        "PORT",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "WORKBENCH_USER",
+        "WORKBENCH_PASS",
+        "S3_BUCKET",
+        "S3_ENDPOINT",
+        "AWS_*"
+      ]
+    },
+    "start": {
+      "passThroughEnv": [
+        "NODE_ENV",
+        "PORT",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "WORKBENCH_USER",
+        "WORKBENCH_PASS",
+        "S3_BUCKET",
+        "S3_ENDPOINT",
+        "AWS_*"
+      ]
+    }
+  }
+}

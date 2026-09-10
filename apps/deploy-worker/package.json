@@ -1,0 +1,28 @@
+{
+  "name": "@repo/deploy-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/deploy-worker.ts --target=bun --packages=external --outdir=dist",
+    "check": "bun --bun ultracite check .",
+    "dev": "bun --watch src/deploy-worker.ts",
+    "fix": "bun --bun ultracite fix .",
+    "start": "bun src/deploy-worker.ts",
+    "test": "bun --bun vitest run --config ../../vitest.config.ts",
+    "test:watch": "bun --bun vitest --config ../../vitest.config.ts",
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "@repo/utils": "workspace:*",
+    "bullmq": "catalog:",
+    "drizzle-orm": "catalog:",
+    "evlog": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

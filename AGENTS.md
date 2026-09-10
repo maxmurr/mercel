@@ -32,7 +32,7 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 
 ### Utility Interfaces & Documentation
 
-When adding or changing functions in `src/utils/`, follow `src/utils/id.ts`:
+When adding or changing functions in `packages/utils/src/`, follow `packages/utils/src/id.ts`:
 
 - Accept a destructured options object typed with a named, top-level interface in the same file, such as `GenerateIdOptions` for `generateId`
 - Add JSDoc to each interface and property, including `@default` for defaulted options and `@example` where useful
