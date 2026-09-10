@@ -6,9 +6,9 @@ import { promisify } from "node:util";
 import { expect, test, vi } from "vitest";
 import { buildApp } from "./build-app.ts";
 
-test("buildApp honors package-lock.json, runs npm build, and rejects failures", async ({
-  onTestFinished,
-}) => {
+test("buildApp honors package-lock.json, runs npm build, and rejects failures", {
+  timeout: 120_000,
+}, async ({ onTestFinished }) => {
   // Spaces in the path prove commands never pass through a shell.
   const directoryPath = await mkdtemp(join(tmpdir(), "mercel static app "));
   onTestFinished(async () => {
@@ -98,15 +98,16 @@ await writeFile("dist/assets/app.js", "export default 1;");`
     })
   );
   await expect(buildApp({ directoryPath })).rejects.toThrow(
-    "Command failed: npm ci --include=dev"
+    "npm ci --include=dev failed."
   );
   expect(await readFile(lockPath, "utf8")).toBe(lockContents);
   await writeFile(packagePath, JSON.stringify(packageJson));
 
   await writeFile(buildPath, "process.exit(2);");
-  await expect(buildApp({ directoryPath })).rejects.toThrow(
-    "Command failed: npm run build"
-  );
+  await expect(buildApp({ directoryPath })).rejects.toMatchObject({
+    code: 2,
+    message: "npm run build failed.",
+  });
   await expect(readFile(join(distPath, "index.html"))).rejects.toMatchObject({
     code: "ENOENT",
   });
@@ -129,6 +130,6 @@ await symlink("home.html", "dist/index.html");`
 
   await writeFile(packagePath, "{invalid json");
   await expect(buildApp({ directoryPath })).rejects.toThrow(
-    "Command failed: npm ci --include=dev"
+    "npm ci --include=dev failed."
   );
 });

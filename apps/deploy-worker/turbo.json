@@ -9,7 +9,12 @@
         "S3_BUCKET",
         "S3_ENDPOINT",
         "AWS_*",
-        "CI"
+        "CI",
+        "DOCKER_HOST",
+        "DOCKER_CONTEXT",
+        "DOCKER_CONFIG",
+        "DOCKER_CERT_PATH",
+        "DOCKER_TLS_VERIFY"
       ]
     },
     "start": {
@@ -20,7 +25,12 @@
         "S3_BUCKET",
         "S3_ENDPOINT",
         "AWS_*",
-        "CI"
+        "CI",
+        "DOCKER_HOST",
+        "DOCKER_CONTEXT",
+        "DOCKER_CONFIG",
+        "DOCKER_CERT_PATH",
+        "DOCKER_TLS_VERIFY"
       ]
     }
   }

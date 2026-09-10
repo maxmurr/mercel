@@ -191,11 +191,16 @@ job's local directory first, so retries restart partial downloads and builds.
 After downloading, the worker calls `buildApp({ directoryPath })`
 from `@repo/utils/build-app`. It expects a static app with a root `package.json`,
 `package-lock.json`, and a `build` script that writes `dist/`.
-Install Node.js and npm on the worker host. Mercel still runs on Bun, but downloaded
-apps use `npm ci --include=dev` with `NODE_ENV=development`, then `npm run build`
-with `NODE_ENV=production`. Missing or mismatched lockfiles fail the job; npm does
-not regenerate them. Install lifecycle scripts run normally.
-Each command has a five-minute timeout.
+Install Docker on the worker host and pull the build image once with
+`docker pull node:24-bookworm-slim`; otherwise the first build pulls it inside its
+timeout. The worker itself needs no Node.js or npm. Each downloaded app runs
+`npm ci --include=dev` with `NODE_ENV=development`, then `npm run build` with
+`NODE_ENV=production`, each in a throwaway container named `mercel-build-<id>`
+from that image. Missing or mismatched lockfiles fail the job; npm does not
+regenerate them. Install lifecycle scripts run normally.
+Each command has a five-minute timeout, after which the container is force-removed.
+Failed commands report `npm ci --include=dev failed.` or `npm run build failed.`
+with the npm or Docker exit code in `code` and the original error in `cause`.
 Any existing `dist/` is removed before building. The worker uploads files from
 `output/deploy/<id>/dist/` to `S3_BUCKET` using keys `dist/<id>/<relative-file-path>`.
 Nested paths and hidden files are preserved; symlinks are skipped. Local build
@@ -213,10 +218,15 @@ structured error details. `fileCount` counts downloaded files. The `upload` obje
 records built-file counts and bytes, plus `currentKey` when an upload fails.
 Stages distinguish validation, database writes, cleanup, download, build, and upload.
 
-Only build trusted repositories. Install and build scripts execute on the worker host with
-its filesystem and network access. The child environment passes only `HOME`,
-`PATH`, `TMPDIR`, `CI`, and `NODE_ENV`, but this is not a sandbox. Isolate builds
-before accepting untrusted repositories.
+Builds run in a throwaway Docker container, not on the worker host. The repository
+is bind-mounted at `/app`, and the container runs as the worker's user with a
+read-only root filesystem, a 1 GB `/tmp`, all capabilities dropped, a 2 GB memory
+limit, and a 512-process limit. Only `HOME`, `npm_config_cache`, `CI`, and
+`NODE_ENV` are set; worker secrets never enter the container. This is not hardened
+for hostile tenants: network egress is open, `POST /deploy` has no authentication,
+the kernel is shared, and Docker Desktop lets containers reach host loopback
+services through `host.docker.internal`. Keep building only trusted repositories
+until those gaps close.
 
 [Elysia integration docs](https://getworkbench.dev/docs/frameworks/elysia).
 
@@ -341,5 +351,5 @@ Upload and worker integration tests start isolated `redis:8-alpine` and
 committed database migrations, and remove the containers afterward. They use a
 local HTTP S3 stub and never connect to the services in app `.env` files.
 
-For CI, make Docker available, install with `bun install --frozen-lockfile`, then
-run `bun run typecheck` and `bun run test`.
+For CI, make Docker and npm available (npm generates build test fixtures), install
+with `bun install --frozen-lockfile`, then run `bun run typecheck` and `bun run test`.
