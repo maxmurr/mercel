@@ -1,5 +1,5 @@
 {
-  "name": "@repo/deploy-worker",
+  "name": "deploy-worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",

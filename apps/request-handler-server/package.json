@@ -1,5 +1,5 @@
 {
-  "name": "@repo/request-handler-server",
+  "name": "request-handler-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",

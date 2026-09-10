@@ -8,7 +8,7 @@ apps/
   upload-server/          # Elysia deployment API and Workbench, port 3000
   deploy-worker/          # BullMQ download, build, and upload worker
   request-handler-server/ # Elysia static file server, port 3001
-  web/                    # Next.js App Router, port 3002
+  web-client/             # Next.js App Router, port 3002
 packages/
   db/                    # PostgreSQL client, schema, and Drizzle migrations
   utils/                 # IDs, file operations, S3, builds, and test helpers
@@ -57,7 +57,7 @@ bun run dev
 Edit `apps/upload-server/src/upload-server.ts`; development mode restarts on changes.
 Use `bun run dev:upload`, `bun run dev:deploy`, `bun run dev:request`, or
 `bun run dev:web` to run one app. The web app runs at http://localhost:3002 and
-requires Node.js 20.9 or later. See [apps/web/README.md](apps/web/README.md).
+requires Node.js 20.9 or later. See [apps/web-client/README.md](apps/web-client/README.md).
 App scratch files now live under each app's `output/` directory, not
 root `output/`; existing root scratch files are left untouched.
 
@@ -323,7 +323,7 @@ bun run check       # Check packages and root tooling config
 bun run fix         # Fix packages and root tooling config
 PORT=4000 bun run dev:upload
 bun run test --filter=@repo/utils
-bun run build --filter=@repo/upload-server
+bun run build --filter=upload-server
 ```
 
 Root scripts delegate package tasks to `turbo run`. Package scripts own their

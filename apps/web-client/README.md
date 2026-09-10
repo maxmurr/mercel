@@ -1,4 +1,4 @@
-# Web
+# Web client
 
 Next.js App Router with TypeScript and Tailwind CSS. Uses the workspace's Bun,
 Turborepo, and Ultracite setup. Requires Node.js 20.9 or later.
@@ -13,8 +13,8 @@ bun run dev:web
 Open http://localhost:3002. Ports 3000 and 3001 belong to the backend services.
 Override with `PORT=4000 bun run dev:web`.
 
-Edit `apps/web/src/app/page.tsx` to change the home page. The `@/*` import alias
-points to `apps/web/src/*`.
+Edit `apps/web-client/src/app/page.tsx` to change the home page. The `@/*` import alias
+points to `apps/web-client/src/*`.
 
 ## Deploy and preview
 
@@ -35,7 +35,7 @@ Build settings remain fixed: repository root, `npm ci --include=dev`,
 Local endpoints work without extra web configuration. To override them:
 
 ```sh
-cp apps/web/.env.example apps/web/.env.local
+cp apps/web-client/.env.example apps/web-client/.env.local
 ```
 
 | Public variable | Default | Purpose |
@@ -76,10 +76,10 @@ host without a sandbox; this frontend does not make the backend safe for public,
 untrusted use.
 
 ```sh
-bun run check --filter=@repo/web
-bun run typecheck --filter=@repo/web
-bun run test --filter=@repo/web
-bun run build --filter=@repo/web
+bun run check --filter=web-client
+bun run typecheck --filter=web-client
+bun run test --filter=web-client
+bun run build --filter=web-client
 bun run start:web
 ```
 
