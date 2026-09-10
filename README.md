@@ -154,6 +154,27 @@ docker compose down
 Stopping services preserves Redis and object data in named Docker volumes.
 Redis uses append-only persistence and disables key eviction for queue workloads.
 
+## Commit messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```text
+feat: add upload retries
+fix(storage): handle empty files
+chore: update dependencies
+```
+
+`bun install` installs a Lefthook `commit-msg` hook that validates messages with
+commitlint's conventional preset. Allowed types are `build`, `chore`, `ci`,
+`docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, and `test`.
+Scope is optional. Use a lowercase subject without a trailing period.
+
+Check a message without creating a commit:
+
+```sh
+printf '%s\n' 'feat: add upload retries' | bun run lint:commit
+```
+
 ## Commands
 
 ```sh

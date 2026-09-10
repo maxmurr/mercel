@@ -1,3 +1,7 @@
+commit-msg:
+  jobs:
+    - run: bun run lint:commit --edit "{1}"
+
 pre-commit:
   jobs:
     - run: bun run fix
