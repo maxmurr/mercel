@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, rm } from "node:fs/promises";
+import { access, lstat, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -29,7 +29,7 @@ const BUILD_OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
  * Commands run on the worker host, not in a sandbox. Worker secrets are not passed in the environment.
  * @param options The downloaded repository directory.
  * @returns Resolves after the build produces dist/index.html.
- * @throws If package.json or package-lock.json is missing, install or build fails or times out, or dist/index.html is missing.
+ * @throws If package.json or package-lock.json is missing, install or build fails or times out, or dist/index.html is missing or not a regular file.
  * @example
  * await buildStaticApp({ directoryPath: "output/deploy/abc12" });
  */
@@ -85,11 +85,17 @@ export async function buildStaticApp({
   });
   await rm(join(directoryPath, "dist"), { force: true, recursive: true });
   await runNpmCommand({ args: ["run", "build"], nodeEnv: "production" });
-  try {
-    await access(join(directoryPath, "dist", "index.html"));
-  } catch (error) {
+  const indexStats = await lstat(
+    join(directoryPath, "dist", "index.html")
+  ).catch((error: unknown) => {
     throw new Error("Static app build did not produce dist/index.html.", {
       cause: error,
     });
+  });
+  // Symlinks are skipped on upload, so a linked index.html would complete with no entry point in S3.
+  if (!indexStats.isFile()) {
+    throw new Error(
+      "Static app build must produce dist/index.html as a regular file, not a symlink or directory."
+    );
   }
 }

@@ -116,6 +116,17 @@ await writeFile("dist/assets/app.js", "export default 1;");`
     "Static app build did not produce dist/index.html."
   );
 
+  await writeFile(
+    buildPath,
+    `import { mkdir, symlink, writeFile } from "node:fs/promises";
+await mkdir("dist", { recursive: true });
+await writeFile("dist/home.html", "built");
+await symlink("home.html", "dist/index.html");`
+  );
+  await expect(buildStaticApp({ directoryPath })).rejects.toThrow(
+    "Static app build must produce dist/index.html as a regular file"
+  );
+
   await writeFile(packagePath, "{invalid json");
   await expect(buildStaticApp({ directoryPath })).rejects.toThrow(
     "Command failed: npm ci --include=dev"

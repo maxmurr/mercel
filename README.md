@@ -152,9 +152,10 @@ Nested paths and hidden files are preserved; symlinks are skipped. Local build
 files remain on disk. The worker does not serve them.
 
 BullMQ marks the job `completed` only after the build produces `dist/index.html`
-and every upload succeeds. Download, install, build, missing-output, or upload
-errors mark it `failed`. Files already uploaded remain in S3; retries overwrite
-matching keys but do not delete other objects under `dist/<id>/`.
+as a regular file and every upload succeeds. Download, install, build,
+missing-output, or upload errors mark it `failed`. Files already uploaded remain
+in S3; retries overwrite matching keys but do not delete other objects under
+`dist/<id>/`.
 Completion logs include `action: "deploy_completed"`, `jobId`, and the downloaded
 `fileCount`; failure logs include `action: "deploy_failed"`, `jobId`, and the error.
 
