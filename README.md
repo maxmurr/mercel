@@ -78,7 +78,7 @@ Redis read failures return `503` with `{ "message": "Upload status unavailable" 
 
 ## Request logging
 
-`src/server.ts` initializes evlog with service name `my-api` and registers
+`src/server.ts` initializes evlog with service name `mercel-server` and registers
 `evlog()` before other plugins and routes. Requests emit a wide event with method,
 path, status, duration, and request ID. Output is pretty-printed in development
 and JSON when `NODE_ENV=production`.
