@@ -1,6 +1,9 @@
-import { QueueEvents } from "bullmq";
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
+import { Worker } from "bullmq";
 import { Elysia } from "elysia";
 import { initLogger, log as logger } from "evlog";
+import { downloadFolderFromS3 } from "./utils/download-folder-from-s3.ts";
 
 initLogger({
   env: { service: "mercel-deploy-server" },
@@ -15,18 +18,62 @@ if (!REDIS_URL) {
   throw new Error("Deploy server configuration missing: set REDIS_URL.");
 }
 
-const jobEvents = new QueueEvents("jobs", {
-  connection: { url: REDIS_URL },
+const uploadIdPattern = /^[0-9A-Za-z]{5}$/;
+const jobWorker = new Worker<unknown, number>(
+  "jobs",
+  async (job) => {
+    if (job.name !== "deploy") {
+      throw new Error("Deploy job name must be deploy.");
+    }
+    const { data } = job;
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !("uploadId" in data) ||
+      typeof data.uploadId !== "string" ||
+      !uploadIdPattern.test(data.uploadId)
+    ) {
+      throw new Error("Deploy job uploadId must be five letters or digits.");
+    }
+
+    const directoryPath = join("output", "deploy", data.uploadId);
+    // Each job owns this scratch directory; discard partial downloads before retrying.
+    await rm(directoryPath, { force: true, recursive: true });
+    const fileCount = await downloadFolderFromS3({
+      directoryPath,
+      prefix: `output/${data.uploadId}`,
+    });
+    if (fileCount === 0) {
+      throw new Error(
+        `Deploy download found no files for uploadId: ${data.uploadId}`
+      );
+    }
+    return fileCount;
+  },
+  { connection: { url: REDIS_URL } }
+);
+jobWorker.on("error", (error: Error) => logger.error("queue", error.message));
+jobWorker.on("completed", (job, fileCount) => {
+  logger.info({
+    action: "download_completed",
+    fileCount,
+    jobId: job.id,
+    queue: "jobs",
+  });
 });
-jobEvents.on("error", (error: Error) => logger.error("queue", error.message));
-jobEvents.on("added", ({ jobId, name }) => {
-  logger.info({ action: "job_added", jobId, name, queue: "jobs" });
+jobWorker.on("failed", (job, error) => {
+  logger.error({
+    action: "download_failed",
+    error: error.message,
+    jobId: job?.id,
+    queue: "jobs",
+  });
 });
-await jobEvents.waitUntilReady();
+await jobWorker.waitUntilReady();
 
 new Elysia()
   .onStop(async () => {
-    await jobEvents.close();
+    await jobWorker.close();
   })
   .listen(process.env.DEPLOY_PORT ?? 3001, (server) => {
     logger.info({

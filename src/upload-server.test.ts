@@ -111,7 +111,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
   const s3Server = createServer(async (request, response) => {
     const body = await buffer(request);
     const url = new URL(request.url ?? "/", "http://localhost");
-    const uploadId = url.pathname.split("/")[4] ?? "";
+    const uploadId = url.pathname.split("/")[3] ?? "";
     queuedDuringUpload.push(await redis.exists(`bull:jobs:${uploadId}`));
     if (uploadsUntilFailure === 0) {
       rejectedKey = decodeURIComponent(url.pathname).replace(
@@ -310,7 +310,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
       stage: "complete",
       status: 200,
     });
-    const outputDirectory = join(workspace, "output");
+    const outputDirectory = join(workspace, "output", "upload");
     const id = String(deployEvent.id);
     expect(deployResponse).toEqual({ id });
     expect(await readdir(outputDirectory)).toEqual([id]);
@@ -337,7 +337,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     });
     await Promise.all(
       filePaths.map(async (filePath) => {
-        const key = `/test-bucket//output/${id}/${relative(cloneDirectory, filePath).split(sep).join("/")}`;
+        const key = `/test-bucket/output/${id}/${relative(cloneDirectory, filePath).split(sep).join("/")}`;
         expect(uploads.get(key)).toEqual(await readFile(filePath));
       })
     );
@@ -408,7 +408,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
       (event) => event.id === failedUploadId && event.action === "deploy"
     );
     const partialUploads = [...uploads.entries()].filter(([key]) =>
-      key.startsWith(`/test-bucket//output/${failedUploadId}/`)
+      key.startsWith(`/test-bucket/output/${failedUploadId}/`)
     );
     expect(partialUploads).toHaveLength(1);
     expect(failedUploadEvent).toMatchObject({

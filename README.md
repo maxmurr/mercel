@@ -35,9 +35,9 @@ disabled. Before enabling credentials, replace `origin: "*"` in
 
 Open `http://localhost:3000/openapi` to test requests in Scalar. Select
 `POST /deploy` and send a JSON body with a nonempty `repoUrl` string. It clones
-the repository with `simple-git` into `output/<id>` relative to the server's
+the repository with `simple-git` into `output/upload/<id>` relative to the server's
 working directory, lists its files, then uploads each file to `S3_BUCKET` using
-keys `/output/<id>/<relative-file-path>`, including the leading slash. Nested
+keys `output/<id>/<relative-file-path>`, without a leading slash. Nested
 paths and hidden files, including `.git`, are preserved; symlinks are skipped.
 Configure `.env` using the S3 and AWS settings in `.env.example` and create the
 bucket first.
@@ -125,8 +125,20 @@ adapter. Commands reject while disconnected instead of waiting in an offline
 queue. `/deploy` jobs appear in Workbench at `/jobs`. The mount path and `basePath`
 are both `/jobs`, so dashboard assets and API requests stay under that path.
 
-Add application queues to the mount's `queues` array as needed. No worker is
-configured yet; queued jobs wait until a BullMQ worker processes them.
+Add application queues to the mount's `queues` array as needed. Start the deploy
+worker in another terminal with `bun run dev:deploy` or `bun run start:deploy`.
+It uses the same `REDIS_URL`, `S3_BUCKET`, and AWS settings as the upload server.
+
+The deploy server consumes `deploy` jobs from `jobs`, including jobs queued while
+it was offline. For each `{ "uploadId": "<id>" }`, it downloads `output/<id>/`
+from S3 into `output/deploy/<id>` relative to its working directory, preserving
+nested paths. IDs must contain five letters or digits. Each attempt clears that
+job's local directory first, so retries restart partial downloads.
+
+BullMQ marks the job `completed` after the download finishes or `failed` if it
+throws or the prefix contains no files. Completion logs include
+`action: "download_completed"`, `jobId`, and `fileCount`; failure logs include
+`action: "download_failed"`, `jobId`, and the error. This worker downloads files only; it does not build or serve the project.
 
 [Elysia integration docs](https://getworkbench.dev/docs/frameworks/elysia).
 

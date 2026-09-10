@@ -17,7 +17,7 @@ export class UploadService implements IUploadService {
   }
 
   async uploadRepository({ id, onProgress, repoUrl }: UploadRepositoryOptions) {
-    const cloneDirectory = join("output", id);
+    const cloneDirectory = join("output/upload", id);
     let uploadedCount = 0;
     let uploadedBytes = 0;
     let currentKey: string | undefined;
@@ -32,7 +32,7 @@ export class UploadService implements IUploadService {
         const relativePath = relative(cloneDirectory, filePath)
           .split(sep)
           .join("/");
-        currentKey = `/output/${id}/${relativePath}`;
+        currentKey = `output/${id}/${relativePath}`;
         // biome-ignore lint/performance/noAwaitInLoops: Keep one upload stream open at a time.
         uploadedBytes += await uploadFileToS3({ filePath, key: currentKey });
         uploadedCount += 1;

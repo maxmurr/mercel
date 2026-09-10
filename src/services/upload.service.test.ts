@@ -25,8 +25,8 @@ vi.mock("../utils/upload-file-to-s3.ts", () => ({
 const ID = "abc12";
 const REPO_URL = "https://github.com/example/repo.git";
 const FILE_PATHS = [
-  resolve("output", ID, "nested", "file with spaces.bin"),
-  resolve("output", ID, ".hidden"),
+  resolve("output", "upload", ID, "nested", "file with spaces.bin"),
+  resolve("output", "upload", ID, ".hidden"),
 ];
 const add = vi.fn<Queue<{ uploadId: string }>["add"]>();
 
@@ -62,10 +62,10 @@ test("uploads files sequentially with exact keys and enqueues only after every u
   await firstStarted.promise;
   expect(mocks.clone).toHaveBeenCalledExactlyOnceWith(
     REPO_URL,
-    join("output", ID)
+    join("output", "upload", ID)
   );
   expect(mocks.getFilePaths).toHaveBeenCalledExactlyOnceWith({
-    directoryPath: join("output", ID),
+    directoryPath: join("output", "upload", ID),
   });
   expect(mocks.uploadFileToS3).toHaveBeenCalledTimes(1);
   expect(add).not.toHaveBeenCalled();
@@ -81,10 +81,10 @@ test("uploads files sequentially with exact keys and enqueues only after every u
     [
       {
         filePath: FILE_PATHS[0],
-        key: `/output/${ID}/nested/file with spaces.bin`,
+        key: `output/${ID}/nested/file with spaces.bin`,
       },
     ],
-    [{ filePath: FILE_PATHS[1], key: `/output/${ID}/.hidden` }],
+    [{ filePath: FILE_PATHS[1], key: `output/${ID}/.hidden` }],
   ]);
   expect(add).toHaveBeenCalledExactlyOnceWith(
     "deploy",
@@ -131,7 +131,7 @@ test("partial upload failure reports only completed uploads and stops before enq
   const error = new Error("Test upload failure");
   mocks.getFilePaths.mockResolvedValueOnce([
     ...FILE_PATHS,
-    resolve("output", ID, "unreached.txt"),
+    resolve("output", "upload", ID, "unreached.txt"),
   ]);
   mocks.uploadFileToS3.mockResolvedValueOnce(4).mockRejectedValueOnce(error);
   const service: IUploadService = new UploadService({ add });
@@ -148,7 +148,7 @@ test("partial upload failure reports only completed uploads and stops before enq
   expect(mocks.uploadFileToS3).toHaveBeenCalledTimes(2);
   expect(add).not.toHaveBeenCalled();
   expect(progress).toEqual({
-    currentKey: `/output/${ID}/.hidden`,
+    currentKey: `output/${ID}/.hidden`,
     fileCount: 3,
     stage: "upload",
     uploadedBytes: 4,
@@ -251,7 +251,7 @@ test("concurrent requests keep progress, failures, and deployment IDs separate",
     uploadedCount: 1,
   });
   expect(secondProgress).toEqual({
-    currentKey: `/output/${otherId}/file.bin`,
+    currentKey: `output/${otherId}/file.bin`,
     fileCount: 1,
     stage: "upload",
     uploadedBytes: 0,
