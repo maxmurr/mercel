@@ -14,7 +14,6 @@ import {
   type Root as DayPickerRoot,
   getDefaultClassNames,
   type Locale,
-  useDayPicker,
   type WeekNumber,
 } from "react-day-picker";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -135,7 +134,7 @@ function Calendar({
       }}
       components={{
         Chevron: CalendarChevron,
-        DayButton: CalendarLocalizedDayButton,
+        DayButton: CalendarDayButton,
         Root: CalendarRoot,
         WeekNumber: CalendarWeekNumber,
         ...components,
@@ -194,18 +193,11 @@ function CalendarWeekNumber({
   );
 }
 
-function CalendarLocalizedDayButton(props: ComponentProps<typeof DayButton>) {
-  const {
-    dayPickerProps: { locale },
-  } = useDayPicker();
-  return <CalendarDayButton locale={locale} {...props} />;
-}
-
 function CalendarDayButton({
   className,
   day,
   modifiers,
-  locale,
+  locale: _locale,
   ...props
 }: ComponentProps<typeof DayButton> & {
   locale?: Partial<Locale> | undefined;
@@ -226,7 +218,7 @@ function CalendarDayButton({
         defaultClassNames.day,
         className
       )}
-      data-day={day.date.toLocaleDateString(locale?.code)}
+      data-day={day.isoDate}
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       data-range-start={modifiers.range_start}

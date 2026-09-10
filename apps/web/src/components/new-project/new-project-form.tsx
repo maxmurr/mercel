@@ -12,10 +12,12 @@ import {
 import { ProjectSettings } from "@/components/new-project/project-settings";
 import { RepositoryField } from "@/components/new-project/repository-field";
 import { SitePreview } from "@/components/new-project/site-preview";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -143,6 +145,9 @@ export function NewProjectForm({ className }: { className?: string }) {
               ? "Your deployment is ready. Preview it below or open the site."
               : "Deploy your GitHub repository using the settings below."}
           </CardDescription>
+          <CardAction>
+            <ThemeSwitcher />
+          </CardAction>
         </CardHeader>
         <CardContent className="px-0 sm:px-8">
           {showCongratulations && deployment.data ? (

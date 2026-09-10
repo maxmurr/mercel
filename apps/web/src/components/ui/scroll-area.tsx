@@ -3,11 +3,13 @@
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { cn } from "cn";
 
+/** Applies viewport styles to the scroll container without masking its scrollbar. */
 function ScrollArea({
   className,
   children,
+  viewportClassName,
   ...props
-}: ScrollAreaPrimitive.Root.Props) {
+}: ScrollAreaPrimitive.Root.Props & { viewportClassName?: string }) {
   return (
     <ScrollAreaPrimitive.Root
       className={cn("relative", className)}
@@ -15,7 +17,10 @@ function ScrollArea({
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
-        className="size-full rounded-[inherit] outline-none transition-[color,box-shadow] focus-visible:outline-1 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className={cn(
+          "size-full rounded-[inherit] outline-none transition-[color,box-shadow] focus-visible:outline-1 focus-visible:ring-[3px] focus-visible:ring-ring/50 motion-reduce:transition-none",
+          viewportClassName
+        )}
         data-slot="scroll-area-viewport"
       >
         {children}
@@ -26,6 +31,7 @@ function ScrollArea({
   );
 }
 
+/** Keeps a slim visible thumb that gains contrast on hover, scrolling, and drag. */
 function ScrollBar({
   className,
   orientation = "vertical",
@@ -34,7 +40,7 @@ function ScrollBar({
   return (
     <ScrollAreaPrimitive.Scrollbar
       className={cn(
-        "flex touch-none select-none p-px transition-colors data-horizontal:h-2.5 data-vertical:h-full data-vertical:w-2.5 data-horizontal:flex-col data-horizontal:border-t data-horizontal:border-t-transparent data-vertical:border-l data-vertical:border-l-transparent",
+        "group/scrollbar flex touch-none select-none p-0.5 data-horizontal:h-2.5 data-vertical:h-full data-vertical:w-2.5 data-horizontal:flex-col",
         className
       )}
       data-orientation={orientation}
@@ -43,7 +49,7 @@ function ScrollBar({
       {...props}
     >
       <ScrollAreaPrimitive.Thumb
-        className="relative flex-1 rounded-full bg-border"
+        className="relative flex-1 rounded-full bg-muted-foreground/60 transition-colors duration-150 group-hover/scrollbar:bg-muted-foreground group-active/scrollbar:bg-foreground data-scrolling:bg-muted-foreground motion-reduce:transition-none forced-colors:bg-[CanvasText]"
         data-slot="scroll-area-thumb"
       />
     </ScrollAreaPrimitive.Scrollbar>

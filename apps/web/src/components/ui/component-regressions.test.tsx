@@ -1,8 +1,11 @@
-import { act } from "react";
+import { act, StrictMode } from "react";
+import { CalendarDay, DateLib } from "react-day-picker";
+import { fr } from "react-day-picker/locale";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { Calendar } from "./calendar";
+import { Calendar, CalendarDayButton } from "./calendar";
+import { Carousel, type CarouselApi } from "./carousel";
 import { ChartStyle } from "./chart";
 import {
   InputGroup,
@@ -21,6 +24,17 @@ import { Tabs, TabsList, TabsTrigger } from "./tabs";
 import { toast } from "./toast";
 import { ToggleGroup, ToggleGroupItem } from "./toggle-group";
 
+const carouselApi = vi.hoisted(() => ({
+  canScrollNext: () => false,
+  canScrollPrev: () => false,
+  off: vi.fn<NonNullable<CarouselApi>["off"]>(),
+  on: vi.fn<NonNullable<CarouselApi>["on"]>(),
+}));
+
+vi.mock("embla-carousel-react", () => ({
+  default: () => [null, carouselApi],
+}));
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -37,6 +51,28 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
+it("cleans up every carousel subscription during Strict Mode replay and unmount", async () => {
+  await act(() =>
+    root.render(
+      <StrictMode>
+        <Carousel />
+      </StrictMode>
+    )
+  );
+  expect(carouselApi.on.mock.calls.map(([event]) => event)).toEqual([
+    "reInit",
+    "select",
+    "reInit",
+    "select",
+  ]);
+  expect(carouselApi.off.mock.calls).toEqual(
+    carouselApi.on.mock.calls.slice(0, 2)
+  );
+
+  await act(() => root.render(null));
+  expect(carouselApi.off.mock.calls).toEqual(carouselApi.on.mock.calls);
+});
+
 it("moves calendar focus to the next day with ArrowRight", async () => {
   const selected = new Date(2026, 0, 15);
   await act(() => {
@@ -45,7 +81,7 @@ it("moves calendar focus to the next day with ArrowRight", async () => {
     );
   });
   const day = container.querySelector<HTMLButtonElement>(
-    `button[data-day="${selected.toLocaleDateString()}"]`
+    'button[data-day="2026-01-15"]'
   );
   expect(day).not.toBeNull();
   await act(() => day?.focus());
@@ -55,9 +91,7 @@ it("moves calendar focus to the next day with ArrowRight", async () => {
       new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" })
     );
   });
-  expect(document.activeElement?.getAttribute("data-day")).toBe(
-    new Date(2026, 0, 16).toLocaleDateString()
-  );
+  expect(document.activeElement?.getAttribute("data-day")).toBe("2026-01-16");
   const focusedDay = document.activeElement;
   await act(() => {
     root.render(
@@ -66,6 +100,27 @@ it("moves calendar focus to the next day with ArrowRight", async () => {
   });
   expect(document.activeElement).toBe(focusedDay);
 });
+
+it.each(["UTC", "Asia/Tokyo", "America/Los_Angeles"])(
+  "uses the calendar date for data-day regardless of locale in %s",
+  (timeZone) => {
+    const dateLib = new DateLib({ timeZone });
+    const date = dateLib.newDate(2026, 0, 15);
+    const day = new CalendarDay(date, date, dateLib);
+
+    for (const locale of [undefined, fr]) {
+      const html = renderToString(
+        <CalendarDayButton day={day} locale={locale} modifiers={{}}>
+          15
+        </CalendarDayButton>
+      );
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      expect(parsed.querySelector("button")?.getAttribute("data-day")).toBe(
+        "2026-01-15"
+      );
+    }
+  }
+);
 
 it.each([
   {

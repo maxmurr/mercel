@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <meta content="dark" name="color-scheme">
+    <title>Agent skills · Example preview</title>
+    <style>
+    :root {
+      font-family: system-ui, sans-serif;
+      color: #f4f4f5;
+      color-scheme: dark;
+      background: #111;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+    }
+    a {
+      color: inherit;
+      text-underline-offset: 4px;
+    }
+    a:focus-visible {
+      outline: 2px solid #c6f68d;
+      outline-offset: 6px;
+    }
+    header {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px clamp(20px, 6vw, 64px);
+      border-bottom: 1px solid #303030;
+    }
+    .wordmark {
+      font-size: 20px;
+      font-weight: 650;
+      letter-spacing: -0.04em;
+    }
+    .label {
+      font:
+        11px ui-monospace,
+        monospace;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    main {
+      max-width: 1100px;
+      padding: 64px clamp(20px, 6vw, 64px);
+      margin: auto;
+    }
+    .eyebrow {
+      font:
+        12px ui-monospace,
+        monospace;
+      color: #c6f68d;
+    }
+    h1 {
+      max-width: 650px;
+      margin: 24px 0;
+      font-size: clamp(40px, 7vw, 76px);
+      font-weight: 550;
+      line-height: 1.04;
+      letter-spacing: -0.06em;
+      text-wrap: balance;
+    }
+    .intro {
+      max-width: 480px;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #aaa;
+    }
+    .browse {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0 20px;
+      margin-top: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #17210d;
+      text-decoration: none;
+      background: #c6f68d;
+      border-radius: 6px;
+    }
+    section {
+      margin-top: 72px;
+      scroll-margin-top: 24px;
+    }
+    .section-heading {
+      display: flex;
+      gap: 16px;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 550;
+      letter-spacing: -0.02em;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    article {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      padding: 24px;
+      background: #191919;
+      border: 1px solid #333;
+      border-radius: 10px;
+    }
+    .symbol {
+      width: fit-content;
+      font:
+        20px ui-monospace,
+        monospace;
+      color: #c6f68d;
+    }
+    h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-weight: 550;
+    }
+    article p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #aaa;
+    }
+    footer {
+      margin-top: 48px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #888;
+    }
+    @media (max-width: 440px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      main {
+        padding-top: 40px;
+      }
+      section {
+        margin-top: 48px;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="wordmark">skills.directory</span>
+      <span class="label">Example website</span>
+    </header>
+    <main>
+      <p class="eyebrow">A toolkit for your next task</p>
+      <h1>Good agents.<br>Better skills.</h1>
+      <p class="intro">
+        Give your agent the instructions it needs. Find skills for writing code,
+        reviewing designs, and working with the web.
+      </p>
+      <a class="browse" href="#skills">Explore the skills ↓</a>
+      <section aria-labelledby="skills-heading" id="skills">
+        <div class="section-heading">
+          <h2 id="skills-heading">The essentials</h2>
+          <span class="label">06 skills</span>
+        </div>
+        <div class="grid">
+          <article>
+            <span aria-hidden="true" class="symbol">⌕</span>
+            <div>
+              <h3>Web search</h3>
+              <p>
+                Find primary sources and bring current information into your
+                conversation.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span aria-hidden="true" class="symbol">&lt;/&gt;</span>
+            <div>
+              <h3>Code review</h3>
+              <p>
+                Catch bugs, check edge cases, and make changes easier to
+                maintain.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span aria-hidden="true" class="symbol">▦</span>
+            <div>
+              <h3>Interface design</h3>
+              <p>
+                Build clear, accessible layouts that work on screens of every
+                size.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span aria-hidden="true" class="symbol">↗</span>
+            <div>
+              <h3>API integration</h3>
+              <p>
+                Connect services with validated inputs and useful error
+                handling.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span aria-hidden="true" class="symbol">✓</span>
+            <div>
+              <h3>Testing</h3>
+              <p>
+                Turn expected behavior into checks you can run before shipping.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span aria-hidden="true" class="symbol">Aa</span>
+            <div>
+              <h3>Technical writing</h3>
+              <p>Write documentation that tells readers what to do and why.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+      <footer>
+        Static preview for the Mercel chat demo. These cards are examples, not
+        installable skills.
+      </footer>
+    </main>
+  </body>
+</html>
