@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Geist } from "next/font/google";
+import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -16,8 +17,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html className={cn("font-sans", geist.variable)} lang="en">
       <body>
-        <TooltipProvider>{children}</TooltipProvider>
-        <Toaster />
+        <QueryProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+          <Toaster />
+        </QueryProvider>
       </body>
     </html>
   );
