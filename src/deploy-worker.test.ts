@@ -6,6 +6,7 @@ import { createServer, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { buffer } from "node:stream/consumers";
 import { fileURLToPath } from "node:url";
 import { Queue, QueueEvents } from "bullmq";
 import { expect, test } from "vitest";
@@ -28,7 +29,7 @@ test("deploy worker rejects missing REDIS_URL", () => {
 });
 
 test.for(["SIGINT", "SIGTERM"] as const)(
-  "deploy worker downloads and builds BullMQ jobs, retries failures, rejects invalid jobs, and drains on %s",
+  "deploy worker downloads, builds, and uploads BullMQ jobs, retries failures, rejects invalid jobs, and drains on %s",
   { timeout: 30_000 },
   async (signal, { onTestFinished }) => {
     const directory = await mkdtemp(join(tmpdir(), "mercel-deploy-"));
@@ -100,14 +101,18 @@ test.for(["SIGINT", "SIGTERM"] as const)(
       files.set(
         `output/${id}/build.mjs`,
         Buffer.from(`import { mkdir, writeFile } from "node:fs/promises";
-await mkdir("dist", { recursive: true });
-await writeFile("dist/index.html", "built");`)
+await mkdir("dist/assets", { recursive: true });
+await writeFile("dist/index.html", "built");
+await writeFile("dist/assets/logo.bin", Buffer.from([0, 255, 1]));
+await writeFile("dist/.nojekyll", "");`)
       );
     }
     const shutdownDownload = Promise.withResolvers<ServerResponse>();
     const prefixes: string[] = [];
+    const uploadedFiles = new Map<string, Buffer>();
+    const uploadRequests: string[] = [];
     let failedKey = "output/ghi56/second.txt";
-    const s3Server = createServer((request, response) => {
+    const s3Server = createServer(async (request, response) => {
       const url = new URL(request.url ?? "/", "http://localhost");
       if (url.searchParams.get("list-type") === "2") {
         const prefix = url.searchParams.get("prefix") ?? "";
@@ -127,6 +132,16 @@ await writeFile("dist/index.html", "built");`)
       const requestedKey = decodeURIComponent(url.pathname).slice(
         "/test-bucket/".length
       );
+      if (request.method === "PUT") {
+        uploadRequests.push(requestedKey);
+        const contents = await buffer(request);
+        if (requestedKey !== failedKey) {
+          uploadedFiles.set(requestedKey, contents);
+          response.writeHead(200, { ETag: '"test-etag"' });
+          response.end();
+          return;
+        }
+      }
       if (requestedKey === "output/jkl78/index.html") {
         shutdownDownload.resolve(response);
         return;
@@ -240,6 +255,16 @@ await writeFile("dist/index.html", "built");`)
       })
     );
 
+    expect(uploadedFiles).toEqual(
+      new Map(
+        ["abc12", "def34"].flatMap((id) => [
+          [`dist/${id}/index.html`, Buffer.from("built")],
+          [`dist/${id}/assets/logo.bin`, Buffer.from([0, 255, 1])],
+          [`dist/${id}/.nojekyll`, Buffer.alloc(0)],
+        ])
+      )
+    );
+
     const failedJob = await queue.add(
       "deploy",
       { uploadId: "ghi56" },
@@ -259,6 +284,19 @@ await writeFile("dist/index.html", "built");`)
       "first"
     );
     await writeFile(join(retryDirectory, "stale.txt"), "discard on retry");
+    failedKey = "dist/ghi56/index.html";
+    await failedJob.retry();
+    await expect(
+      failedJob.waitUntilFinished(queueEvents, 5000)
+    ).rejects.toThrow();
+    expect(await failedJob.getState()).toBe("failed");
+    expect(uploadRequests).toContain(failedKey);
+    expect(uploadedFiles.has(failedKey)).toBe(false);
+    expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
+      action: "deploy_failed",
+      jobId: "ghi56",
+      level: "error",
+    });
     failedKey = "";
     await failedJob.retry();
     expect(await failedJob.waitUntilFinished(queueEvents, 5000)).toBe(5);
@@ -274,6 +312,10 @@ await writeFile("dist/index.html", "built");`)
       jobId: "ghi56",
     });
 
+    expect(uploadedFiles.get("dist/ghi56/index.html")).toEqual(
+      Buffer.from("built")
+    );
+    const uploadsBeforeBuildFailure = uploadRequests.length;
     files.set("output/ghi56/build.mjs", Buffer.from("process.exit(1);"));
     const failedBuildJob = await queue.add(
       "deploy",
@@ -291,6 +333,8 @@ await writeFile("dist/index.html", "built");`)
     await expect(
       readFile(join(retryDirectory, "dist", "index.html"))
     ).rejects.toMatchObject({ code: "ENOENT" });
+
+    expect(uploadRequests).toHaveLength(uploadsBeforeBuildFailure);
 
     const emptyJob = await queue.add(
       "deploy",
@@ -323,6 +367,7 @@ await writeFile("dist/index.html", "built");`)
     expect(prefixes).toEqual([
       "output/abc12/",
       "output/def34/",
+      "output/ghi56/",
       "output/ghi56/",
       "output/ghi56/",
       "output/ghi56/",
@@ -364,6 +409,13 @@ await writeFile("dist/index.html", "built");`)
         "utf8"
       )
     ).toBe("built");
+    expect(uploadedFiles.get("dist/jkl78/index.html")).toEqual(
+      Buffer.from("built")
+    );
+    expect(uploadedFiles.get("dist/jkl78/assets/logo.bin")).toEqual(
+      Buffer.from([0, 255, 1])
+    );
+    expect(uploadedFiles.get("dist/jkl78/.nojekyll")).toEqual(Buffer.alloc(0));
     expect(queueErrors).toEqual([]);
   }
 );

@@ -146,11 +146,15 @@ apps use `npm ci --include=dev` with `NODE_ENV=development`, then `npm run build
 with `NODE_ENV=production`. Missing or mismatched lockfiles fail the job; npm does
 not regenerate them. Install lifecycle scripts run normally.
 Each command has a five-minute timeout.
-Any existing `dist/` is removed before building. The resulting static files stay
-in `output/deploy/<id>/dist/`; the worker does not upload or serve them.
+Any existing `dist/` is removed before building. The worker uploads files from
+`output/deploy/<id>/dist/` to `S3_BUCKET` using keys `dist/<id>/<relative-file-path>`.
+Nested paths and hidden files are preserved; symlinks are skipped. Local build
+files remain on disk. The worker does not serve them.
 
-BullMQ marks the job `completed` only after the build produces `dist/index.html`.
-Download, install, build, or missing-output errors mark it `failed`.
+BullMQ marks the job `completed` only after the build produces `dist/index.html`
+and every upload succeeds. Download, install, build, missing-output, or upload
+errors mark it `failed`. Files already uploaded remain in S3; retries overwrite
+matching keys but do not delete other objects under `dist/<id>/`.
 Completion logs include `action: "deploy_completed"`, `jobId`, and the downloaded
 `fileCount`; failure logs include `action: "deploy_failed"`, `jobId`, and the error.
 
