@@ -1,12 +1,14 @@
 # mercel
 
-Bun and Turborepo workspace with three services and shared TypeScript packages.
+Bun and Turborepo workspace with three backend services, a Next.js web app, and
+shared TypeScript packages.
 
 ```text
 apps/
   upload-server/          # Elysia deployment API and Workbench, port 3000
   deploy-worker/          # BullMQ download, build, and upload worker
   request-handler-server/ # Elysia static file server, port 3001
+  web/                    # Next.js App Router, port 3002
 packages/
   db/                    # PostgreSQL client, schema, and Drizzle migrations
   utils/                 # IDs, file operations, S3, builds, and test helpers
@@ -43,7 +45,7 @@ single-package layout, move existing values into these files and archive the old
 root `.env` so Bun does not inject it into every app.
 
 Start local services, create the `mercel` bucket at `http://localhost:9001`, apply
-migrations, then run all three apps:
+migrations, then run all apps:
 
 ```sh
 docker compose --env-file .env.compose up -d --wait
@@ -53,8 +55,10 @@ bun run dev
 
 `GET http://localhost:3000/` returns `Hello Elysia`.
 Edit `apps/upload-server/src/upload-server.ts`; development mode restarts on changes.
-Use `bun run dev:upload`, `bun run dev:deploy`, or `bun run dev:request` to run
-one app. App scratch files now live under each app's `output/` directory, not
+Use `bun run dev:upload`, `bun run dev:deploy`, `bun run dev:request`, or
+`bun run dev:web` to run one app. The web app runs at http://localhost:3002 and
+requires Node.js 20.9 or later. See [apps/web/README.md](apps/web/README.md).
+App scratch files now live under each app's `output/` directory, not
 root `output/`; existing root scratch files are left untouched.
 
 CORS allows all origins and handles `OPTIONS` preflight requests. Credentials are

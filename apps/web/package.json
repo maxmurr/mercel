@@ -1,0 +1,27 @@
+{
+  "name": "@repo/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "check": "bun --bun ultracite check .",
+    "dev": "next dev --port ${PORT:-3002}",
+    "fix": "bun --bun ultracite fix .",
+    "start": "next start --port ${PORT:-3002}",
+    "typecheck": "next typegen && bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^26.5.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "catalog:"
+  }
+}

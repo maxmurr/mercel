@@ -1,8 +1,20 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "extends": ["ultracite/biome/core"],
+  "extends": [
+    "ultracite/biome/core",
+    "ultracite/biome/react",
+    "ultracite/biome/next"
+  ],
   "files": {
-    "includes": ["!!**/node_modules", "!!**/dist", "!!**/output", "!!**/.turbo"]
+    "includes": [
+      "!!**/node_modules",
+      "!!**/dist",
+      "!!**/output",
+      "!!**/.turbo",
+      "!!**/.next",
+      "!!**/out",
+      "!!**/next-env.d.ts"
+    ]
   },
   "linter": {
     "rules": {
