@@ -1,7 +1,7 @@
 # Web client
 
 Next.js App Router with TypeScript and Tailwind CSS. Uses the workspace's Bun,
-Turborepo, and Ultracite setup. Requires Node.js 20.9 or later.
+Turborepo, and Ultracite setup. Requires Node.js 22.13 or later for Mastra.
 
 From the repository root:
 
@@ -15,6 +15,40 @@ Override with `PORT=4000 bun run dev:web`.
 
 Edit `apps/web-client/src/app/page.tsx` to change the home page. The `@/*` import alias
 points to `apps/web-client/src/*`.
+
+## Mastra
+
+`src/mastra/index.ts` registers `agent`, a simple assistant defined in
+`src/mastra/agents/agent.ts`. It uses DeepSeek V4.1 Flash, model ID
+`opencode-go/deepseek-flash`, through Mastra's model router, with no tools or
+conversation memory.
+
+Add your OpenCode Go key to `apps/web-client/.env.local`:
+
+```dotenv
+OPENCODE_API_KEY=your-opencode-api-key
+```
+
+Keep the key server-only, never in a `NEXT_PUBLIC_*` variable. Import Mastra from
+Next.js server code, not client components. Mastra's default in-memory storage
+loses data on restart; configure persistent storage before production use.
+
+This app uses TypeScript 6 because the Mastra CLI's `typescript-paths` dependency
+requires compiler APIs removed in TypeScript 7. Other workspaces keep the catalog
+version.
+
+Run Studio in a separate terminal from the repository root:
+
+```sh
+bun run --cwd apps/web-client dev:mastra
+```
+
+Open http://localhost:4111 and select **Agent** to chat. In server code,
+call `await mastra.getAgentById("agent").generate("Hello!")` and read
+`result.text` from the returned result.
+
+`bun run dev:web` still starts Next.js on port 3002. Generated Studio files stay
+in the ignored `.mastra/` directory. This setup does not add a Next.js chat route.
 
 ## Deploy and preview
 

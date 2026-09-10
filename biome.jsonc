@@ -12,6 +12,7 @@
       "!!**/output",
       "!!**/.turbo",
       "!!**/.next",
+      "!!**/.mastra",
       "!!**/out",
       "!!**/next-env.d.ts"
     ]
