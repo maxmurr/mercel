@@ -43,7 +43,7 @@ export function NewProjectForm({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex flex-col gap-6", className)}>
-      <Card className="gap-6 max-sm:contents sm:pt-8 sm:pb-8">
+      <Card className="gap-6 max-sm:contents sm:py-8">
         <CardHeader className="gap-4 px-0 sm:px-8">
           <CardTitle>
             <h1
