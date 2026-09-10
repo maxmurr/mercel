@@ -6,17 +6,7 @@ import { promisify } from "node:util";
 import { expect, test, vi } from "vitest";
 import { buildApp } from "./build-app.ts";
 
-test("buildApp rejects unsupported presets before accessing the repository", async () => {
-  await expect(
-    buildApp({
-      directoryPath: "",
-      // @ts-expect-error Verify runtime rejection for callers outside TypeScript.
-      preset: "nextjs",
-    })
-  ).rejects.toThrow("Unsupported app build preset: nextjs");
-});
-
-test("buildApp with the vite preset honors package-lock.json, runs npm build, and rejects failures", async ({
+test("buildApp honors package-lock.json, runs npm build, and rejects failures", async ({
   onTestFinished,
 }) => {
   // Spaces in the path prove commands never pass through a shell.
@@ -27,9 +17,7 @@ test("buildApp with the vite preset honors package-lock.json, runs npm build, an
   });
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("BUILD_WORKER_SECRET", "must-not-reach-build");
-  await expect(
-    buildApp({ directoryPath, preset: "vite" })
-  ).rejects.toMatchObject({
+  await expect(buildApp({ directoryPath })).rejects.toMatchObject({
     code: "ENOENT",
   });
 
@@ -55,9 +43,7 @@ test("buildApp with the vite preset honors package-lock.json, runs npm build, an
     },
   };
   await writeFile(packagePath, JSON.stringify(packageJson));
-  await expect(
-    buildApp({ directoryPath, preset: "vite" })
-  ).rejects.toMatchObject({
+  await expect(buildApp({ directoryPath })).rejects.toMatchObject({
     code: "ENOENT",
   });
   await promisify(execFile)(
@@ -86,7 +72,7 @@ await writeFile("dist/assets/app.js", "export default 1;");`
   await mkdir(distPath);
   await writeFile(join(distPath, "stale.txt"), "discard");
 
-  await buildApp({ directoryPath, preset: "vite" });
+  await buildApp({ directoryPath });
   expect(await readFile(lockPath, "utf8")).toBe(lockContents);
   expect(await readFile(join(directoryPath, "installed.txt"), "utf8")).toBe(
     "installed"
@@ -111,14 +97,14 @@ await writeFile("dist/assets/app.js", "export default 1;");`
       },
     })
   );
-  await expect(buildApp({ directoryPath, preset: "vite" })).rejects.toThrow(
+  await expect(buildApp({ directoryPath })).rejects.toThrow(
     "Command failed: npm ci --include=dev"
   );
   expect(await readFile(lockPath, "utf8")).toBe(lockContents);
   await writeFile(packagePath, JSON.stringify(packageJson));
 
   await writeFile(buildPath, "process.exit(2);");
-  await expect(buildApp({ directoryPath, preset: "vite" })).rejects.toThrow(
+  await expect(buildApp({ directoryPath })).rejects.toThrow(
     "Command failed: npm run build"
   );
   await expect(readFile(join(distPath, "index.html"))).rejects.toMatchObject({
@@ -126,7 +112,7 @@ await writeFile("dist/assets/app.js", "export default 1;");`
   });
 
   await writeFile(buildPath, "process.exit(0);");
-  await expect(buildApp({ directoryPath, preset: "vite" })).rejects.toThrow(
+  await expect(buildApp({ directoryPath })).rejects.toThrow(
     "Static app build did not produce dist/index.html."
   );
 
@@ -137,12 +123,12 @@ await mkdir("dist", { recursive: true });
 await writeFile("dist/home.html", "built");
 await symlink("home.html", "dist/index.html");`
   );
-  await expect(buildApp({ directoryPath, preset: "vite" })).rejects.toThrow(
+  await expect(buildApp({ directoryPath })).rejects.toThrow(
     "Static app build must produce dist/index.html as a regular file"
   );
 
   await writeFile(packagePath, "{invalid json");
-  await expect(buildApp({ directoryPath, preset: "vite" })).rejects.toThrow(
+  await expect(buildApp({ directoryPath })).rejects.toThrow(
     "Command failed: npm ci --include=dev"
   );
 });

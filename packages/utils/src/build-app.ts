@@ -3,18 +3,13 @@ import { access, lstat, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-/** Options for building a downloaded app with a supported preset. */
+/** Options for building a downloaded static app. */
 interface BuildAppOptions {
   /**
    * The repository root containing package.json, package-lock.json, and a build script that writes dist/.
    * @example "output/deploy/abc12"
    */
   directoryPath: string;
-  /**
-   * The build preset. Currently only Vite static apps are supported.
-   * @example "vite"
-   */
-  preset: "vite";
 }
 
 /** Options for running an npm command in the downloaded repository. */
@@ -30,21 +25,17 @@ const BUILD_COMMAND_TIMEOUT_MS = 5 * 60 * 1000;
 const BUILD_OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
 
 /**
- * Builds a trusted app using the selected preset. The Vite preset runs npm ci and npm run build, replacing any existing dist/.
+ * Builds a trusted static app with npm ci and npm run build, replacing any existing dist/.
  * Commands run on the worker host, not in a sandbox. Worker secrets are not passed in the environment.
- * @param options The downloaded repository directory and build preset.
- * @returns Resolves after the Vite build produces dist/index.html.
- * @throws If the preset is unsupported, package.json or package-lock.json is missing, install or build fails or times out, or dist/index.html is missing or not a regular file.
+ * @param options The downloaded repository directory.
+ * @returns Resolves after the build produces dist/index.html.
+ * @throws If package.json or package-lock.json is missing, install or build fails or times out, or dist/index.html is missing or not a regular file.
  * @example
- * await buildApp({ directoryPath: "output/deploy/abc12", preset: "vite" });
+ * await buildApp({ directoryPath: "output/deploy/abc12" });
  */
 export async function buildApp({
   directoryPath,
-  preset,
 }: BuildAppOptions): Promise<void> {
-  if (preset !== "vite") {
-    throw new Error(`Unsupported app build preset: ${preset}`);
-  }
   // Require repository-local manifests before npm can search parent directories.
   await access(join(directoryPath, "package.json"));
   await access(join(directoryPath, "package-lock.json"));

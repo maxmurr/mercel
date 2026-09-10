@@ -81,7 +81,7 @@ const jobWorker = new Worker<unknown, number>(
         );
       }
       log.set({ stage: "build" });
-      await buildApp({ directoryPath, preset: "vite" });
+      await buildApp({ directoryPath });
       log.set({ stage: "upload" });
       progress = await uploadFolderToS3({
         directoryPath: join(directoryPath, "dist"),
