@@ -20,6 +20,7 @@ import { createClient } from "redis";
 import { simpleGit } from "simple-git";
 import { expect, test } from "vitest";
 import { getFilePaths } from "./utils/file-paths.ts";
+import { idPattern } from "./utils/id.ts";
 
 const UPLOAD_SERVER_PATH = fileURLToPath(
   new URL("./upload-server.ts", import.meta.url)
@@ -283,17 +284,35 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     expect(unknownStatus.status).toBe(404);
     expect(await unknownStatus.json()).toEqual({ message: "Upload not found" });
 
-    const [deployResponse] = await Promise.all(
-      [{ repoUrl }, {}].map(async (body) => {
+    await Promise.all(
+      [
+        undefined,
+        null,
+        [],
+        {},
+        "repo",
+        { repoUrl: "" },
+        { repoUrl: null },
+        { repoUrl: 42 },
+      ].map(async (body) => {
         const result = await fetch(new URL("/deploy", baseUrl), {
-          body: JSON.stringify(body),
+          body: body === undefined ? null : JSON.stringify(body),
           headers: { "Content-Type": "application/json" },
           method: "POST",
         });
-        expect(result.status).toBe("repoUrl" in body ? 200 : 422);
-        return result.ok ? await result.json() : undefined;
+        expect(result.status).toBe(422);
       })
     );
+    expect(uploads.size).toBe(0);
+    expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([]);
+
+    const deploy = await fetch(new URL("/deploy", baseUrl), {
+      body: JSON.stringify({ repoUrl }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    expect(deploy.status).toBe(200);
+    const deployResponse = await deploy.json();
 
     const deployEvent = await readServerEvent(
       lines,
@@ -312,6 +331,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
     });
     const outputDirectory = join(workspace, "output", "upload");
     const id = String(deployEvent.id);
+    expect(id).toMatch(idPattern);
     expect(deployResponse).toEqual({ id });
     expect(await readdir(outputDirectory)).toEqual([id]);
     const cloneDirectory = join(outputDirectory, id);

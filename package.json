@@ -26,7 +26,6 @@
     "@aws-sdk/lib-storage": "^3.1129.0",
     "@elysia/cors": "^1.4.2",
     "@elysia/openapi": "^1.4.16",
-    "@evyweb/ioctopus": "^1.4.1",
     "@getworkbench/elysia": "^0.9.1",
     "bullmq": "^6.3.4",
     "elysia": "^1.4.30",

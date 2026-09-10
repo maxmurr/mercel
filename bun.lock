@@ -9,7 +9,6 @@
         "@aws-sdk/lib-storage": "^3.1129.0",
         "@elysia/cors": "^1.4.2",
         "@elysia/openapi": "^1.4.16",
-        "@evyweb/ioctopus": "^1.4.1",
         "@getworkbench/elysia": "^0.9.1",
         "bullmq": "^6.3.4",
         "elysia": "^1.4.30",
@@ -144,8 +143,6 @@
     "@elysia/cors": ["@elysia/cors@1.4.2", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-dXkfo1IxZWJkJReNYnPJorJqb+XpWno0D/YWlMEJSkiFIFd751zJ4R/YswAYdo88mLWo8cycEj673o7L+gbxsw=="],
 
     "@elysia/openapi": ["@elysia/openapi@1.4.16", "", { "peerDependencies": { "@sinclair/typebox": ">= 0.34.0 < 1", "elysia": ">= 1.4.0", "typescript": ">= 5.0.0" } }, "sha512-bAaU1yOn8oxTv+EdzrW8z7RccUQ/y9zeMEPLz+K6lyc4KJ2MLTT0QI9H7Inh2O6N8PDv2nfXGFH8YDfJUOLPOQ=="],
-
-    "@evyweb/ioctopus": ["@evyweb/ioctopus@1.4.1", "", {}, "sha512-0hlCf9AwICiHIoh4hKxluanrRb6Q430PBwEBoVYkN251639qbm+uQ/W5XjBI4oKhL9AuTy6Dp/AxeyCwe/hDtg=="],
 
     "@floating-ui/core": ["@floating-ui/core@1.8.0", "", { "dependencies": { "@floating-ui/utils": "0.2.12" } }, "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ=="],
 
