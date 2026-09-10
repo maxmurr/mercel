@@ -166,14 +166,45 @@ before accepting untrusted repositories.
 
 [Elysia integration docs](https://getworkbench.dev/docs/frameworks/elysia).
 
+## Database
+
+Drizzle uses Bun's native PostgreSQL driver. Set `DATABASE_URL` in `.env` using
+`.env.example`, then start PostgreSQL:
+
+```sh
+docker compose up -d --wait postgres
+```
+
+Import `postgresDb` from `src/db/database.ts` for queries. It shares a connection
+pool and connects on the first query. Importing it fails if `DATABASE_URL` is
+missing. Standalone scripts should call `await postgresDb.$client.close()` when
+finished.
+
+Define and export tables in `src/db/schema.ts` using `drizzle-orm/pg-core`.
+The schema starts empty; no application tables or migrations exist yet.
+After adding tables:
+
+```sh
+bun run db:generate  # Generate SQL migrations in drizzle/
+bun run db:migrate   # Apply pending migrations
+bun run db:studio    # Browse the database locally
+```
+
+Review generated SQL before applying it and commit the `drizzle/` directory.
+For local schema experiments, `bun run db:push` applies changes without migration
+files. Use migrations for shared databases. All database commands run under Bun
+and load `.env`. Drizzle Kit uses the `postgres` dev dependency; application
+queries use Bun's native driver. No dotenv package is needed.
+
 ## Local services
 
-Start Redis and RustFS with Docker Compose:
+Start PostgreSQL, Redis, and RustFS with Docker Compose:
 
 ```sh
 docker compose up -d --wait
 ```
 
+- PostgreSQL: `localhost:5432`, database and user `mercel`
 - Redis: `redis://localhost:6379`
 - RustFS S3 endpoint: `http://localhost:9000`
 - RustFS console: `http://localhost:9001`
@@ -188,7 +219,7 @@ Create buckets through the RustFS console; use path-style addressing in S3 clien
 docker compose down
 ```
 
-Stopping services preserves Redis and object data in named Docker volumes.
+Stopping services preserves PostgreSQL, Redis, and object data in named Docker volumes.
 Redis uses append-only persistence and disables key eviction for queue workloads.
 
 ## Commit messages
