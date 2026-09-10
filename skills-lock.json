@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "skills": {
+    "analyze-logs": {
+      "source": "evlog.dev",
+      "sourceUrl": "https://www.evlog.dev",
+      "sourceType": "well-known",
+      "computedHash": "4a04a46743f211420f0844d09110ba4f6219e70f59c89377ba0293650ec12ed4",
+      "wellKnownDigest": "sha256:85611ea5ab31c54e745ad5ebaf994c6aff1405c58a218c26a7ecef02244193b6"
+    },
+    "build-audit-logs": {
+      "source": "evlog.dev",
+      "sourceUrl": "https://www.evlog.dev",
+      "sourceType": "well-known",
+      "computedHash": "c10e91d4b8dae0a6c94633393a5dbf8755a4c53f24c8fdc036698aece3d1c81a",
+      "wellKnownDigest": "sha256:7600fc70881807ff82d4f7d2f48e8eac6d1e4edd5d3dc6c5d509dd748c63fcda"
+    },
+    "review-logging-patterns": {
+      "source": "evlog.dev",
+      "sourceUrl": "https://www.evlog.dev",
+      "sourceType": "well-known",
+      "computedHash": "cfaf8a5fe8b8751854afdbf8fc81f864c99f57dac2896251eb3a93ffe3eee564",
+      "wellKnownDigest": "sha256:ecded78fbf0708a43d4a833bf0e90e3b9b1cdb6ffb1e13a02b59db036b9bafc7"
+    },
+    "ultracite": {
+      "source": "haydenbleasel/ultracite",
+      "sourceType": "github",
+      "skillPath": "skills/ultracite/SKILL.md",
+      "computedHash": "e91e1a862cd261060a8d15dca52d3c63e084ceb5ce81ba06cbc9386f622795d2"
+    }
+  }
+}
