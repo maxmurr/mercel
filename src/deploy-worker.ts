@@ -1,12 +1,11 @@
 import { rm } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 import { Worker } from "bullmq";
 import { initLogger, log as logger } from "evlog";
 import { buildStaticApp } from "./utils/build-static-app.ts";
 import { downloadFolderFromS3 } from "./utils/download-folder-from-s3.ts";
-import { getFilePaths } from "./utils/file-paths.ts";
 import { idPattern } from "./utils/id.ts";
-import { uploadFileToS3 } from "./utils/upload-file-to-s3.ts";
+import { uploadFolderToS3 } from "./utils/upload-folder-to-s3.ts";
 
 initLogger({
   env: { service: "mercel-deploy-worker" },
@@ -54,18 +53,10 @@ const jobWorker = new Worker<unknown, number>(
       );
     }
     await buildStaticApp({ directoryPath });
-    const distDirectory = join(directoryPath, "dist");
-    const filePaths = await getFilePaths({ directoryPath: distDirectory });
-    for (const filePath of filePaths) {
-      const relativePath = relative(distDirectory, filePath)
-        .split(sep)
-        .join("/");
-      // biome-ignore lint/performance/noAwaitInLoops: Keep one upload stream open at a time.
-      await uploadFileToS3({
-        filePath,
-        key: `dist/${data.uploadId}/${relativePath}`,
-      });
-    }
+    await uploadFolderToS3({
+      directoryPath: join(directoryPath, "dist"),
+      prefix: `dist/${data.uploadId}`,
+    });
     return fileCount;
   },
   { connection: { url: REDIS_URL } }

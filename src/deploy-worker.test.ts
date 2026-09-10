@@ -100,11 +100,12 @@ test.for(["SIGINT", "SIGTERM"] as const)(
       );
       files.set(
         `output/${id}/build.mjs`,
-        Buffer.from(`import { mkdir, writeFile } from "node:fs/promises";
+        Buffer.from(`import { mkdir, symlink, writeFile } from "node:fs/promises";
 await mkdir("dist/assets", { recursive: true });
 await writeFile("dist/index.html", "built");
 await writeFile("dist/assets/logo.bin", Buffer.from([0, 255, 1]));
-await writeFile("dist/.nojekyll", "");`)
+await writeFile("dist/.nojekyll", "");
+await symlink("index.html", "dist/link.html");`)
       );
     }
     const shutdownDownload = Promise.withResolvers<ServerResponse>();
@@ -290,7 +291,8 @@ await writeFile("dist/.nojekyll", "");`)
       failedJob.waitUntilFinished(queueEvents, 5000)
     ).rejects.toThrow();
     expect(await failedJob.getState()).toBe("failed");
-    expect(uploadRequests).toContain(failedKey);
+    // Fail-fast: no upload is attempted after the rejected key, whatever the directory order.
+    expect(uploadRequests.at(-1)).toBe(failedKey);
     expect(uploadedFiles.has(failedKey)).toBe(false);
     expect(JSON.parse((await errors.next()).value ?? "null")).toMatchObject({
       action: "deploy_failed",

@@ -1,4 +1,4 @@
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 import { cors } from "@elysia/cors";
 import { openapi } from "@elysia/openapi";
 import { workbench } from "@getworkbench/elysia";
@@ -8,9 +8,11 @@ import { initLogger, log as logger } from "evlog";
 import { evlog } from "evlog/elysia";
 import { createClient } from "redis";
 import { simpleGit } from "simple-git";
-import { getFilePaths } from "./utils/file-paths.ts";
 import { generateId, idPattern } from "./utils/id.ts";
-import { uploadFileToS3 } from "./utils/upload-file-to-s3.ts";
+import {
+  type UploadFolderProgress,
+  uploadFolderToS3,
+} from "./utils/upload-folder-to-s3.ts";
 
 initLogger({
   env: { service: "mercel-upload-server" },
@@ -55,26 +57,20 @@ new Elysia()
     async ({ body, log, status }) => {
       const id = generateId();
       const cloneDirectory = join("output/upload", id);
-      let uploadedCount = 0;
-      let uploadedBytes = 0;
-      let currentKey: string | undefined;
+      let progress: UploadFolderProgress | undefined;
 
       log.set({ action: "deploy", id, stage: "clone" });
       try {
         await simpleGit().clone(body.repoUrl, cloneDirectory);
         log.set({ stage: "scan" });
-        const filePaths = await getFilePaths({ directoryPath: cloneDirectory });
-        log.set({ fileCount: filePaths.length, stage: "upload" });
-        for (const filePath of filePaths) {
-          const relativePath = relative(cloneDirectory, filePath)
-            .split(sep)
-            .join("/");
-          currentKey = `output/${id}/${relativePath}`;
-          // biome-ignore lint/performance/noAwaitInLoops: Keep one upload stream open at a time.
-          uploadedBytes += await uploadFileToS3({ filePath, key: currentKey });
-          uploadedCount += 1;
-        }
-        currentKey = undefined;
+        progress = await uploadFolderToS3({
+          directoryPath: cloneDirectory,
+          onProgress: (update) => {
+            progress = update;
+            log.set({ stage: "upload" });
+          },
+          prefix: `output/${id}`,
+        });
         log.set({ stage: "publish" });
         await jobQueue.add("deploy", { uploadId: id }, { jobId: id });
         log.set({ stage: "complete" });
@@ -83,11 +79,7 @@ new Elysia()
         log.error(error instanceof Error ? error : new Error(String(error)));
         return status(500, { id });
       } finally {
-        log.set({
-          ...(currentKey === undefined ? {} : { currentKey }),
-          uploadedBytes,
-          uploadedCount,
-        });
+        log.set({ uploadedBytes: 0, uploadedCount: 0, ...progress });
       }
     },
     {
