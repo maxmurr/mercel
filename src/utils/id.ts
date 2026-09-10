@@ -1,10 +1,10 @@
 import { customAlphabet } from "nanoid";
 
-/** Matches an ID from generateId with the default length. */
+/** Matches five-character application IDs, including legacy mixed-case IDs. */
 export const idPattern = /^[0-9A-Za-z]{5}$/;
 
 /**
- * Options for generating a random alphanumeric ID.
+ * Options for generating a random lowercase alphanumeric ID.
  */
 interface GenerateIdOptions {
   /**
@@ -16,16 +16,12 @@ interface GenerateIdOptions {
 }
 
 /**
- * Generates a random ID using digits and uppercase and lowercase letters.
+ * Generates a random ID using digits and lowercase letters so hostname normalization preserves it.
  * @param options The options for generating the ID.
  * @returns The generated ID. Uniqueness is not guaranteed.
  * @example
  * generateId({ length: 5 }); // e.g. "abc12"
  */
 export function generateId({ length = 5 }: GenerateIdOptions = {}): string {
-  const id = customAlphabet(
-    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-    length
-  )();
-  return id;
+  return customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", length)();
 }

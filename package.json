@@ -7,11 +7,13 @@
     "check": "bun --bun ultracite check",
     "dev": "bun --watch src/upload-server.ts",
     "dev:deploy": "bun --watch src/deploy-worker.ts",
+    "dev:request": "bun --watch src/request-handler-server.ts",
     "fix": "bun --bun ultracite fix",
     "lint:commit": "bun --bun commitlint",
     "prepare": "bun --bun lefthook install",
     "start": "bun src/upload-server.ts",
     "start:deploy": "bun src/deploy-worker.ts",
+    "start:request": "bun src/request-handler-server.ts",
     "test": "bun --bun vitest run",
     "test:watch": "bun --bun vitest",
     "typecheck": "bun --bun tsc --noEmit"
