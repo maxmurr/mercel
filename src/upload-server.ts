@@ -11,7 +11,7 @@ import { createDeployRoutes } from "./routes/deploy.routes.ts";
 import { createStatusRoutes } from "./routes/status.routes.ts";
 
 initLogger({
-  env: { service: "mercel-server" },
+  env: { service: "mercel-upload-server" },
   redact: {
     paths: ["repoUrl"],
     // Git and SDK errors can echo credential URLs, or paths with query tokens.

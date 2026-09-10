@@ -21,7 +21,9 @@ import { simpleGit } from "simple-git";
 import { expect, test } from "vitest";
 import { getFilePaths } from "./utils/file-paths.ts";
 
-const SERVER_PATH = fileURLToPath(new URL("./server.ts", import.meta.url));
+const UPLOAD_SERVER_PATH = fileURLToPath(
+  new URL("./upload-server.ts", import.meta.url)
+);
 const SECRET_URL =
   "https://deploy:demo-secret%21suffix@example.com/org/repo.git?access_token=demo-query-token#demo-fragment";
 
@@ -45,7 +47,7 @@ async function readServerEvent(
 test.each(["REDIS_URL", "WORKBENCH_USER", "WORKBENCH_PASS"])(
   "startup rejects missing %s",
   (missing) => {
-    const result = spawnSync("bun", [SERVER_PATH], {
+    const result = spawnSync("bun", [UPLOAD_SERVER_PATH], {
       env: {
         ...process.env,
         PORT: "0",
@@ -134,7 +136,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
 
   const workspace = await mkdtemp(join(tmpdir(), "mercel-deploy-"));
   const repoUrl = join(workspace, "source");
-  const server = spawn("bun", [SERVER_PATH], {
+  const server = spawn("bun", [UPLOAD_SERVER_PATH], {
     cwd: workspace,
     env: {
       ...process.env,
@@ -194,7 +196,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
       hostname: expect.any(String),
       level: "info",
       port: expect.any(Number),
-      service: "mercel-server",
+      service: "mercel-upload-server",
     });
     const baseUrl = `http://localhost:${startup.port}`;
 
@@ -304,7 +306,7 @@ test("deploy uploads before publishing a BullMQ job and exposes its live state",
       method: "POST",
       path: "/deploy",
       requestId: expect.any(String),
-      service: "mercel-server",
+      service: "mercel-upload-server",
       stage: "complete",
       status: 200,
     });

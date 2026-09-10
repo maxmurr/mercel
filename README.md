@@ -25,11 +25,11 @@ bun run dev
 ```
 
 `GET http://localhost:3000/` returns `Hello Elysia`.
-Edit `src/server.ts`; development mode restarts on changes.
+Edit `src/upload-server.ts`; development mode restarts on changes.
 
 CORS allows all origins and handles `OPTIONS` preflight requests. Credentials are
-disabled. Before enabling credentials, replace `origin: "*"` in `src/server.ts`
-with an explicit allowlist of trusted frontend origins.
+disabled. Before enabling credentials, replace `origin: "*"` in
+`src/upload-server.ts` with an explicit allowlist of trusted frontend origins.
 
 ## API docs
 
@@ -78,8 +78,9 @@ Redis read failures return `503` with `{ "message": "Upload status unavailable" 
 
 ## Request logging
 
-`src/server.ts` initializes evlog with service name `mercel-server` and registers
-`evlog()` before other plugins and routes. Requests emit a wide event with method,
+`src/upload-server.ts` initializes evlog with service name `mercel-upload-server`
+and registers `evlog()` before other plugins and routes. Requests emit a wide
+event with method,
 path, status, duration, and request ID. Output is pretty-printed in development
 and JSON when `NODE_ENV=production`.
 
@@ -118,8 +119,8 @@ Open `http://localhost:3000/jobs` and sign in with `WORKBENCH_USER` and
 is missing. Use HTTPS outside local development; HTTP basic auth does not encrypt
 credentials.
 
-`src/server.ts` connects a shared Redis publisher using `REDIS_URL` before
-listening. The BullMQ `jobs` queue uses that connection through its node-redis
+`src/upload-server.ts` connects a shared Redis publisher using `REDIS_URL`
+before listening. The BullMQ `jobs` queue uses that connection through its node-redis
 adapter. Commands reject while disconnected instead of waiting in an offline
 queue. `/deploy` jobs appear in Workbench at `/jobs`. The mount path and `basePath`
 are both `/jobs`, so dashboard assets and API requests stay under that path.
