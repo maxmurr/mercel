@@ -270,14 +270,14 @@ it("preserves drafts until the store has connected chat actions", async () => {
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
-it("resizes with the keyboard and stops at a 50/50 split", async () => {
+it("resizes with the keyboard, stops at a 50/50 split, and collapses at Home", async () => {
   vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(500);
   await renderPage();
   const handle = container.querySelector<HTMLElement>(
     '[aria-label="Resize chat and preview"]'
   );
   expect(handle?.getAttribute("role")).toBe("separator");
-  expect(handle?.getAttribute("aria-valuemin")).toBe("25");
+  expect(handle?.getAttribute("aria-valuemin")).toBe("0");
   expect(handle?.getAttribute("aria-valuemax")).toBe("50");
   expect(handle?.getAttribute("aria-valuenow")).toBe("40");
   await act(() =>
@@ -297,7 +297,26 @@ it("resizes with the keyboard and stops at a 50/50 split", async () => {
       new KeyboardEvent("keydown", { bubbles: true, key: "Home" })
     )
   );
-  expect(handle?.getAttribute("aria-valuenow")).toBe("25");
+  expect(handle?.getAttribute("aria-valuenow")).toBe("0");
+  expect(container.querySelector('[aria-label="Show chat"]')).not.toBeNull();
+});
+
+it("collapses and expands the chat panel from the preview toolbar", async () => {
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(500);
+  await renderPage();
+  const handle = container.querySelector<HTMLElement>(
+    '[aria-label="Resize chat and preview"]'
+  );
+  const toggle = container.querySelector('[aria-label="Hide chat"]');
+  expect(toggle?.getAttribute("aria-controls")).toBe("chat-panel");
+  expect(handle?.getAttribute("aria-valuenow")).toBe("40");
+  await clickButton("Hide chat");
+  expect(handle?.getAttribute("aria-valuenow")).toBe("0");
+  expect(container.querySelector('[aria-label="Hide chat"]')).toBeNull();
+  expect(getTextarea().value).toBe("");
+  await clickButton("Show chat");
+  expect(handle?.getAttribute("aria-valuenow")).toBe("40");
+  expect(container.querySelector('[aria-label="Show chat"]')).toBeNull();
 });
 
 it("sends UI messages, renders markdown, and reuses history and routing sessions until reset", async () => {

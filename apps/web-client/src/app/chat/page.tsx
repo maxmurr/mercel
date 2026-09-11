@@ -1,7 +1,14 @@
 "use client";
 
-import { MessageSquareIcon, MonitorIcon } from "lucide-react";
+import {
+  MessageSquareIcon,
+  MonitorIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+} from "lucide-react";
 import { useState } from "react";
+import { type Layout, usePanelRef } from "react-resizable-panels";
+import { WebPreviewNavigationButton } from "@/components/ai-elements/web-preview";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { ChatPreview } from "@/components/chat/chat-preview";
@@ -18,11 +25,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 // Keep script-enabled deployment previews on a separate origin from the web app.
 const previewUrl = "http://yoopy.localhost:3001/";
+const chatResizablePanelId = "chat-resizable-panel";
 
 /** Chats with the registered Mastra agent; conversation history lasts until reset or navigation. */
 export default function ChatPage() {
   const [chatId, setChatId] = useState(() => crypto.randomUUID());
   const [mobilePanel, setMobilePanel] = useState("chat");
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const chatPanelRef = usePanelRef();
   const isMobileLayout = useIsMobile(1024);
 
   function handleNewChat() {
@@ -32,6 +42,19 @@ export default function ChatPage() {
 
   function handlePanelToggle() {
     setMobilePanel((panel) => (panel === "chat" ? "preview" : "chat"));
+  }
+
+  function handleLayoutChanged(layout: Layout) {
+    setIsChatCollapsed(layout[chatResizablePanelId] === 0);
+  }
+
+  function handleChatCollapseToggle() {
+    const chatPanel = chatPanelRef.current;
+    if (chatPanel?.isCollapsed()) {
+      chatPanel.expand();
+    } else {
+      chatPanel?.collapse();
+    }
   }
 
   return (
@@ -57,16 +80,19 @@ export default function ChatPage() {
       </div>
       <Separator />
       <ResizablePanelGroup
-        className="max-lg:*:data-[mobile-hidden=true]:hidden! min-h-0 flex-1 has-data-[separator=active]:[&_iframe]:pointer-events-none"
+        className="max-lg:*:data-[mobile-hidden=true]:hidden! max-lg:*:grow! min-h-0 flex-1 has-data-[separator=active]:[&_iframe]:pointer-events-none"
         disabled={isMobileLayout}
+        onLayoutChanged={handleLayoutChanged}
         orientation="horizontal"
       >
         <ResizablePanel
+          collapsible
           data-mobile-hidden={mobilePanel !== "chat"}
           defaultSize="40%"
-          id="chat-resizable-panel"
+          id={chatResizablePanelId}
           maxSize="50%"
           minSize="25%"
+          panelRef={chatPanelRef}
         >
           <ChatPanel aria-label="Chat" id="chat-panel">
             <ChatSession id={chatId} key={chatId} />
@@ -85,7 +111,20 @@ export default function ChatPage() {
         >
           <ChatPanel aria-label="Example preview" id="preview-panel">
             <Tabs className="h-full min-h-0 gap-0" defaultValue="preview">
-              <div className="shrink-0 border-b px-2">
+              <div className="flex shrink-0 items-center gap-1 border-b px-2">
+                <WebPreviewNavigationButton
+                  aria-controls="chat-panel"
+                  className="max-lg:hidden"
+                  onClick={handleChatCollapseToggle}
+                  size="icon"
+                  tooltip={isChatCollapsed ? "Show chat" : "Hide chat"}
+                >
+                  {isChatCollapsed ? (
+                    <PanelLeftOpenIcon />
+                  ) : (
+                    <PanelLeftCloseIcon />
+                  )}
+                </WebPreviewNavigationButton>
                 <TabsList aria-label="Preview views" variant="line">
                   <TabsTrigger value="preview">Preview</TabsTrigger>
                   <TabsTrigger value="code">Code</TabsTrigger>
