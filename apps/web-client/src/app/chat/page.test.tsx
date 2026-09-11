@@ -801,6 +801,9 @@ it("shows reasoning while the model thinks and folds it away once the answer arr
       '[role="log"] [data-slot="collapsible-trigger"]'
     );
   expect(getTrigger()?.textContent).toBe("Reasoning…");
+  expect(getTrigger()?.querySelector(".shimmer")?.textContent).toBe(
+    "Reasoning…"
+  );
   expect(getTrigger()?.getAttribute("aria-expanded")).toBe("true");
   expect(container.querySelector('[role="log"]')?.textContent).toContain(
     "Three things decide it."

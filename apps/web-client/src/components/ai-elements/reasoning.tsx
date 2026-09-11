@@ -39,7 +39,11 @@ export function Reasoning({
         ) : (
           <BrainIcon aria-hidden="true" className="size-4 shrink-0" />
         )}
-        {isStreaming ? "Reasoning…" : "Reasoning"}
+        {isStreaming ? (
+          <span className="shimmer forced-colors:shimmer-none">Reasoning…</span>
+        ) : (
+          "Reasoning"
+        )}
         <ChevronDownIcon
           aria-hidden="true"
           className="size-4 shrink-0 transition-transform group-aria-expanded/reasoning:rotate-180 motion-reduce:transition-none"
