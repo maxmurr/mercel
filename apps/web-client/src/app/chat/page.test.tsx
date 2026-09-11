@@ -171,7 +171,7 @@ function getChatRequest(index: number) {
   return new Request(new URL(String(url), window.location.origin), init);
 }
 
-it("starts empty and keeps the separate-origin preview and accessible layout", async () => {
+it("starts empty with a placeholder preview and accessible layout", async () => {
   await renderPage();
   expect(container.textContent).toContain("What can we build together?");
   expect(container.textContent).not.toContain("UI demo. No AI connected.");
@@ -187,29 +187,23 @@ it("starts empty and keeps the separate-origin preview and accessible layout", a
     true
   );
   expect(getTextarea().classList.contains("scrollbar-subtle")).toBe(true);
-  const preview = container.querySelector("iframe");
-  expect(preview?.getAttribute("src")).toBe("http://yoopy.localhost:3001/");
-  expect(new URL(preview?.src ?? "").origin).not.toBe(window.location.origin);
-  expect(preview?.title).toBe("Agent skills example website");
-  expect(preview?.getAttribute("sandbox")).toBe(
-    "allow-scripts allow-same-origin allow-forms"
+  expect(container.querySelector("iframe")).toBeNull();
+  expect(container.textContent).toContain("No preview yet");
+  const previewUrlInput = container.querySelector<HTMLInputElement>(
+    'input[aria-label="Preview URL"]'
   );
-  expect(preview?.getAttribute("referrerpolicy")).toBe("no-referrer");
+  expect(previewUrlInput?.value).toBe("/");
+  expect(previewUrlInput?.readOnly).toBe(true);
   expect(
-    container.querySelector<HTMLInputElement>('input[aria-label="Preview URL"]')
-      ?.readOnly
+    container.querySelector<HTMLButtonElement>('[aria-label="Reload preview"]')
+      ?.disabled
   ).toBe(true);
   const previewLink = container.querySelector(
-    'a[href="http://yoopy.localhost:3001/"]'
+    '[aria-label="Open preview in new tab"]'
   );
-  expect(previewLink?.getAttribute("target")).toBe("_blank");
-  expect(previewLink?.getAttribute("rel")).toBe("noopener noreferrer");
-  expect(previewLink?.getAttribute("aria-label")).toBe(
-    "Open preview in new tab"
-  );
+  expect(previewLink?.hasAttribute("href")).toBe(false);
+  expect(previewLink?.getAttribute("aria-disabled")).toBe("true");
   expect(container.querySelector("button button, button a")).toBeNull();
-  await clickButton("Reload preview");
-  expect(container.querySelector("iframe")).not.toBe(preview);
   expect(container.textContent).not.toContain("No console output.");
   await clickButton("Console");
   expect(container.textContent).toContain("No console output.");
@@ -219,9 +213,10 @@ it("starts empty and keeps the separate-origin preview and accessible layout", a
       (tab) => tab.textContent
     )
   ).toEqual(["Preview", "Code"]);
-  const reloadedPreview = container.querySelector("iframe");
   await clickButton("Code");
-  expect(container.querySelector("iframe")).toBe(reloadedPreview);
+  expect(container.querySelector('input[aria-label="Preview URL"]')).toBe(
+    previewUrlInput
+  );
   expect(
     container.querySelector('[role="tabpanel"]:not([hidden])')?.textContent
   ).toBe("Nothing here yet.");
@@ -243,6 +238,39 @@ it("starts empty and keeps the separate-origin preview and accessible layout", a
       ?.getAttribute("data-mobile-hidden")
   ).toBe("false");
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("frames a supplied URL in a sandboxed separate-origin iframe", async () => {
+  await act(() =>
+    root.render(
+      <TooltipProvider>
+        <ChatPreview title="Example site" url="http://abc12.localhost:3001/" />
+      </TooltipProvider>
+    )
+  );
+  const preview = container.querySelector("iframe");
+  expect(preview?.getAttribute("src")).toBe("http://abc12.localhost:3001/");
+  expect(new URL(preview?.src ?? "").origin).not.toBe(window.location.origin);
+  expect(preview?.title).toBe("Example site");
+  expect(preview?.getAttribute("sandbox")).toBe(
+    "allow-scripts allow-same-origin allow-forms"
+  );
+  expect(preview?.getAttribute("referrerpolicy")).toBe("no-referrer");
+  expect(container.textContent).not.toContain("No preview yet");
+  expect(
+    container.querySelector<HTMLInputElement>('input[aria-label="Preview URL"]')
+      ?.value
+  ).toBe("http://abc12.localhost:3001/");
+  const previewLink = container.querySelector(
+    'a[href="http://abc12.localhost:3001/"]'
+  );
+  expect(previewLink?.getAttribute("target")).toBe("_blank");
+  expect(previewLink?.getAttribute("rel")).toBe("noopener noreferrer");
+  expect(previewLink?.getAttribute("aria-label")).toBe(
+    "Open preview in new tab"
+  );
+  await clickButton("Reload preview");
+  expect(container.querySelector("iframe")).not.toBe(preview);
 });
 
 it("preserves drafts until the store has connected chat actions", async () => {
@@ -506,7 +534,9 @@ it("isolates draft edits and streamed deltas from layout and completed messages"
     await vi.advanceTimersByTimeAsync(50);
   });
   await flushChatUpdates();
-  const preview = container.querySelector("iframe");
+  const previewUrlInput = container.querySelector(
+    'input[aria-label="Preview URL"]'
+  );
 
   vi.mocked(ChatHeader).mockClear();
   vi.mocked(ChatPreview).mockClear();
@@ -541,7 +571,9 @@ it("isolates draft edits and streamed deltas from layout and completed messages"
   expect(ChatConversation).not.toHaveBeenCalled();
   expect(ChatHeader).not.toHaveBeenCalled();
   expect(ChatPreview).not.toHaveBeenCalled();
-  expect(container.querySelector("iframe")).toBe(preview);
+  expect(container.querySelector('input[aria-label="Preview URL"]')).toBe(
+    previewUrlInput
+  );
   expect(getTextarea().value).toBe("Next draft");
   await clickButton("Stop generating");
 });
@@ -655,25 +687,28 @@ it("replaces a failed partial reply on retry without losing the user message", a
   expect((await getChatRequest(1).json()).messages).toHaveLength(1);
 });
 
-it("preserves drafts and history across panel toggles and preview reloads", async () => {
+it("preserves drafts, history, and the preview across panel toggles", async () => {
   await renderPage();
   await enterMessage("Hello");
   await clickButton("Send message");
-  const preview = container.querySelector("iframe");
+  const previewUrlInput = container.querySelector(
+    'input[aria-label="Preview URL"]'
+  );
   const messages = container.querySelector('[role="log"]')?.textContent;
   await enterMessage("Unsent draft");
   await clickButton("Preview");
   expect(getTextarea().value).toBe("Unsent draft");
-  expect(container.querySelector("iframe")).toBe(preview);
-  await clickButton("Reload preview");
-  const reloadedPreview = container.querySelector("iframe");
-  expect(reloadedPreview).not.toBe(preview);
+  expect(container.querySelector('input[aria-label="Preview URL"]')).toBe(
+    previewUrlInput
+  );
   await clickButton("Chat");
   expect(getTextarea().value).toBe("Unsent draft");
   expect(container.querySelector('[role="log"]')?.textContent).toBe(messages);
   await clickButton("New chat");
   expect(getTextarea().value).toBe("");
-  expect(container.querySelector("iframe")).toBe(reloadedPreview);
+  expect(container.querySelector('input[aria-label="Preview URL"]')).toBe(
+    previewUrlInput
+  );
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 

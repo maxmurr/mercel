@@ -23,8 +23,6 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// Keep script-enabled deployment previews on a separate origin from the web app.
-const previewUrl = "http://yoopy.localhost:3001/";
 const chatResizablePanelId = "chat-resizable-panel";
 
 /** Chats with the registered Mastra agent; conversation history lasts until reset or navigation. */
@@ -131,10 +129,7 @@ export default function ChatPage() {
                 </TabsList>
               </div>
               <TabsContent className="min-h-0" keepMounted value="preview">
-                <ChatPreview
-                  title="Agent skills example website"
-                  url={previewUrl}
-                />
+                <ChatPreview title="Agent preview" />
               </TabsContent>
               <TabsContent className="min-h-0" value="code">
                 <p className="px-4 py-3 text-base/7 text-muted-foreground sm:text-sm/6">
