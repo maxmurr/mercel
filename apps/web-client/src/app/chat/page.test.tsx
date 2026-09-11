@@ -1,8 +1,27 @@
-import { act } from "react";
+import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { Streamdown } from "streamdown";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { ChatComposer } from "@/components/chat/chat-composer";
+import { ChatConversation } from "@/components/chat/chat-conversation";
+import { ChatHeader } from "@/components/chat/chat-header";
+import { ChatPreview } from "@/components/chat/chat-preview";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ChatPage from "./page";
+
+vi.mock("@/components/chat/chat-composer", { spy: true });
+vi.mock("@/components/chat/chat-conversation", { spy: true });
+vi.mock("@/components/chat/chat-header", { spy: true });
+vi.mock("@/components/chat/chat-preview", { spy: true });
+vi.mock("streamdown", async (importOriginal) => {
+  const original = await importOriginal<typeof import("streamdown")>();
+  return {
+    ...original,
+    Streamdown: vi.fn((props: ComponentProps<typeof original.Streamdown>) => (
+      <original.Streamdown {...props} />
+    )),
+  };
+});
 
 let container: HTMLDivElement;
 let root: Root;
@@ -40,6 +59,15 @@ function chatResponse(text = "A **streamed** reply.") {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({
+    toFake: [
+      "setTimeout",
+      "clearTimeout",
+      "Date",
+      "requestAnimationFrame",
+      "cancelAnimationFrame",
+    ],
+  });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal(
@@ -76,12 +104,18 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(() => root.unmount());
+  await flushChatUpdates();
   container.remove();
   Reflect.deleteProperty(Element.prototype, "getAnimations");
   Reflect.deleteProperty(Element.prototype, "scrollTo");
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
+
+// Flush the store's animation-frame batches after React commits connection updates.
+async function flushChatUpdates() {
+  await act(() => vi.advanceTimersByTimeAsync(50));
+}
 
 async function renderPage() {
   await act(() =>
@@ -91,6 +125,7 @@ async function renderPage() {
       </TooltipProvider>
     )
   );
+  await flushChatUpdates();
 }
 
 function getTextarea() {
@@ -124,6 +159,7 @@ async function clickButton(label: string) {
     throw new Error(`Chat button not found: ${label}`);
   }
   await act(() => button.click());
+  await flushChatUpdates();
 }
 
 function getChatRequest(index: number) {
@@ -192,6 +228,31 @@ it("starts empty and keeps the separate-origin preview and accessible layout", a
       ?.getAttribute("data-mobile-hidden")
   ).toBe("false");
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("preserves drafts until the store has connected chat actions", async () => {
+  await act(() =>
+    root.render(
+      <TooltipProvider>
+        <ChatPage />
+      </TooltipProvider>
+    )
+  );
+  await enterMessage("Early draft");
+  expect(
+    container.querySelector<HTMLButtonElement>('button[type="submit"]')
+      ?.disabled
+  ).toBe(true);
+  await act(() =>
+    container
+      .querySelector("form")
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+  );
+  expect(getTextarea().value).toBe("Early draft");
+  expect(fetchMock).not.toHaveBeenCalled();
+  await flushChatUpdates();
+  await clickButton("Send message");
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
 it("resizes with the keyboard and stops at a 50/50 split", async () => {
@@ -288,14 +349,26 @@ it("sends UI messages, renders markdown, and reuses history and routing sessions
 });
 
 it("renders partial replies and stops streaming without losing drafts", async () => {
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   const { promise, resolve } = Promise.withResolvers<Response>();
   fetchMock.mockReturnValueOnce(promise);
   const stream = new TransformStream<unknown, unknown>();
   const writer = stream.writable.getWriter();
   await renderPage();
   await enterMessage("Hello");
-  await clickButton("Send message");
+  await act(() =>
+    container
+      .querySelector("form")
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+  );
+  await enterMessage("Next draft");
+  await act(() =>
+    container
+      .querySelector("form")
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+  );
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(getTextarea().value).toBe("Next draft");
+  await flushChatUpdates();
   const thinking = container.querySelector('[role="status"]');
   expect(thinking?.textContent).toBe("Thinking…");
   expect(thinking?.querySelector(".shimmer")?.textContent).toBe("Thinking…");
@@ -322,6 +395,7 @@ it("renders partial replies and stops streaming without losing drafts", async ()
     });
     await vi.advanceTimersByTimeAsync(50);
   });
+  await flushChatUpdates();
   expect(container.querySelector('[role="log"]')?.textContent).toContain(
     "Partial reply"
   );
@@ -336,7 +410,6 @@ it("renders partial replies and stops streaming without losing drafts", async ()
 });
 
 it("batches rapid code deltas before rendering and keeps the final reply", async () => {
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   const stream = new TransformStream<unknown, unknown>();
   const writer = stream.writable.getWriter();
   fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
@@ -362,16 +435,103 @@ it("batches rapid code deltas before rendering and keeps the final reply", async
   await act(async () => {
     await vi.advanceTimersByTimeAsync(50);
   });
+  await flushChatUpdates();
   expect(container.querySelector('[role="log"] code')?.textContent).toContain(
     "<div>Todo 119</div>"
   );
   await act(async () => {
+    await writer.write({
+      payload: { text: "\nFinal short tail." },
+      type: "text-delta",
+    });
     await writer.write({ type: "finish" });
     await writer.close();
   });
+  await flushChatUpdates();
   expect(container.querySelector('[aria-label="Stop generating"]')).toBeNull();
   expect(container.querySelector('[role="log"] code')?.textContent).toContain(
     "<div>Todo 119</div>"
+  );
+  expect(container.querySelector('[role="log"]')?.textContent).toContain(
+    "Final short tail."
+  );
+});
+
+it("isolates draft edits and streamed deltas from layout and completed messages", async () => {
+  await renderPage();
+  await enterMessage("First turn");
+  await clickButton("Send message");
+
+  const stream = new TransformStream<unknown, unknown>();
+  const writer = stream.writable.getWriter();
+  fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
+  await enterMessage("Second turn");
+  await clickButton("Send message");
+  await act(async () => {
+    await writer.write({ payload: { text: "Partial" }, type: "text-delta" });
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await flushChatUpdates();
+  const preview = container.querySelector("iframe");
+
+  vi.mocked(ChatHeader).mockClear();
+  vi.mocked(ChatPreview).mockClear();
+  vi.mocked(ChatConversation).mockClear();
+  vi.mocked(Streamdown).mockClear();
+  await enterMessage("Next draft");
+  expect(Streamdown).not.toHaveBeenCalled();
+  vi.mocked(ChatComposer).mockClear();
+
+  await act(async () => {
+    await Promise.all(
+      [" reply", " keeps", " streaming"].map((text) =>
+        writer.write({ payload: { text }, type: "text-delta" })
+      )
+    );
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await flushChatUpdates();
+
+  expect(container.querySelector('[role="log"]')?.textContent).toContain(
+    "Partial reply keeps streaming"
+  );
+  expect(Streamdown).toHaveBeenCalled();
+  expect(
+    vi
+      .mocked(Streamdown)
+      .mock.calls.every(([props]) =>
+        String(props.children).startsWith("Partial")
+      )
+  ).toBe(true);
+  expect(ChatComposer).not.toHaveBeenCalled();
+  expect(ChatConversation).not.toHaveBeenCalled();
+  expect(ChatHeader).not.toHaveBeenCalled();
+  expect(ChatPreview).not.toHaveBeenCalled();
+  expect(container.querySelector("iframe")).toBe(preview);
+  expect(getTextarea().value).toBe("Next draft");
+  await clickButton("Stop generating");
+});
+
+it("aborts on navigation and starts with an empty store when mounted again", async () => {
+  const { promise, resolve } = Promise.withResolvers<Response>();
+  fetchMock.mockReturnValueOnce(promise);
+  await renderPage();
+  await enterMessage("Leaving now");
+  await clickButton("Send message");
+  await act(() => root.render(null));
+  expect(getChatRequest(0).signal.aborted).toBe(true);
+  await renderPage();
+  await act(() => resolve(chatResponse("Late reply")));
+  await flushChatUpdates();
+  expect(container.querySelectorAll('[data-slot="message"]')).toHaveLength(0);
+  expect(container.textContent).not.toContain("Late reply");
+  expect(getTextarea().value).toBe("");
+  await enterMessage("New visit");
+  await clickButton("Send message");
+  const oldBody = await getChatRequest(0).json();
+  const newBody = await getChatRequest(1).json();
+  expect(newBody.requestContext.opencodeSessionId).not.toBe(
+    oldBody.requestContext.opencodeSessionId
   );
 });
 
@@ -426,6 +586,40 @@ it.each(["http", "stream"])(
     expect(container.querySelectorAll('[data-slot="message"]')).toHaveLength(2);
   }
 );
+
+it("replaces a failed partial reply on retry without losing the user message", async () => {
+  const stream = new TransformStream<unknown, unknown>();
+  const writer = stream.writable.getWriter();
+  fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
+  await renderPage();
+  await enterMessage("Try this");
+  await clickButton("Send message");
+  await act(async () => {
+    await writer.write({
+      payload: { text: "Partial reply" },
+      type: "text-delta",
+    });
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await flushChatUpdates();
+  expect(container.querySelector('[role="log"]')?.textContent).toContain(
+    "Partial reply"
+  );
+  await act(async () => {
+    await writer.write({
+      payload: { error: "Private provider error" },
+      type: "error",
+    });
+    await writer.close();
+  });
+  await flushChatUpdates();
+  expect(container.querySelector('[role="alert"]')).not.toBeNull();
+  await clickButton("Retry");
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+  expect(container.textContent).not.toContain("Partial reply");
+  expect(container.querySelectorAll('[data-slot="message"]')).toHaveLength(2);
+  expect((await getChatRequest(1).json()).messages).toHaveLength(1);
+});
 
 it("preserves drafts and history across panel toggles and preview reloads", async () => {
   await renderPage();

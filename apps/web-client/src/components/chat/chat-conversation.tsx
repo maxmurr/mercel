@@ -1,6 +1,10 @@
 "use client";
 
-import type { ChatStatus, UIMessage } from "ai";
+import {
+  useChatStore,
+  useMessageById,
+  useMessageIds,
+} from "@ai-sdk-tools/store";
 import { MessageSquareIcon } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -22,13 +26,12 @@ import {
 } from "@/components/ui/message-scroller";
 import { Spinner } from "@/components/ui/spinner";
 
-function ChatMessageItem({
-  isStreaming,
-  message,
-}: {
-  isStreaming: boolean;
-  message: UIMessage;
-}) {
+function ChatMessageItem({ messageId }: { messageId: string }) {
+  const message = useMessageById(messageId);
+  const isStreaming = useChatStore(
+    (state) =>
+      state.status === "streaming" && state.getLastMessageId() === messageId
+  );
   const isUser = message.role === "user";
   const content = message.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
@@ -64,22 +67,41 @@ function ChatMessageItem({
   );
 }
 
-/** Renders chat history with plain user text, assistant markdown, and automatic scrolling. */
-export function ChatConversation({
-  className,
-  messages,
-  status,
-}: {
-  className?: string;
-  messages: readonly UIMessage[];
-  status: ChatStatus;
-}) {
-  const lastMessage = messages.at(-1);
-  const isWaitingForReply =
-    status === "submitted" ||
-    (status === "streaming" &&
-      (lastMessage?.role !== "assistant" ||
-        !lastMessage.parts.some((part) => part.type === "text" && part.text)));
+function ChatPendingReply() {
+  const isWaitingForReply = useChatStore((state) => {
+    const lastMessage = state.getThrottledMessages().at(-1);
+    return (
+      state.status === "submitted" ||
+      (state.status === "streaming" &&
+        (lastMessage?.role !== "assistant" ||
+          !lastMessage.parts.some((part) => part.type === "text" && part.text)))
+    );
+  });
+
+  if (!isWaitingForReply) {
+    return null;
+  }
+
+  return (
+    <MessageScrollerItem messageId="chat-pending">
+      <p
+        className="flex items-center gap-2 text-muted-foreground text-sm"
+        role="status"
+      >
+        <Spinner
+          aria-hidden="true"
+          className="shrink-0 motion-reduce:animate-none"
+          role="presentation"
+        />
+        <span className="shimmer forced-colors:shimmer-none">Thinking…</span>
+      </p>
+    </MessageScrollerItem>
+  );
+}
+
+/** Subscribes to chat message IDs; each row observes only its own content. */
+export function ChatConversation({ className }: { className?: string }) {
+  const messageIds = useMessageIds();
 
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
@@ -92,7 +114,7 @@ export function ChatConversation({
             aria-label="Conversation"
             className="gap-8 px-5 py-8 sm:px-8"
           >
-            {messages.length === 0 ? (
+            {messageIds.length === 0 ? (
               <MessageScrollerItem messageId="empty">
                 <Empty>
                   <EmptyHeader>
@@ -107,33 +129,11 @@ export function ChatConversation({
                 </Empty>
               </MessageScrollerItem>
             ) : (
-              messages.map((message) => (
-                <ChatMessageItem
-                  isStreaming={
-                    status === "streaming" && message.id === messages.at(-1)?.id
-                  }
-                  key={message.id}
-                  message={message}
-                />
+              messageIds.map((messageId) => (
+                <ChatMessageItem key={messageId} messageId={messageId} />
               ))
             )}
-            {isWaitingForReply ? (
-              <MessageScrollerItem messageId="chat-pending">
-                <p
-                  className="flex items-center gap-2 text-muted-foreground text-sm"
-                  role="status"
-                >
-                  <Spinner
-                    aria-hidden="true"
-                    className="shrink-0 motion-reduce:animate-none"
-                    role="presentation"
-                  />
-                  <span className="shimmer forced-colors:shimmer-none">
-                    Thinking…
-                  </span>
-                </p>
-              </MessageScrollerItem>
-            ) : null}
+            <ChatPendingReply />
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton

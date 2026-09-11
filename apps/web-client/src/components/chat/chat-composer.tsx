@@ -1,5 +1,6 @@
 "use client";
 
+import { useChatStore } from "@ai-sdk-tools/store";
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import {
   type ChangeEvent,
@@ -8,6 +9,7 @@ import {
   type KeyboardEvent,
   useCallback,
   useRef,
+  useState,
 } from "react";
 import {
   InputGroup,
@@ -20,42 +22,45 @@ import { cn } from "@/lib/utils";
 interface ChatComposerProps {
   className?: string;
   describedBy?: string;
-  isBusy: boolean;
-  onSend: (content: string) => Promise<void>;
-  onStop: () => Promise<void>;
-  onValueChange: (value: string) => void;
-  value: string;
 }
 
 /** Sends trimmed chat text on Enter while preserving Shift+Enter and IME confirmation. */
-export function ChatComposer({
-  className,
-  describedBy,
-  isBusy,
-  onSend,
-  onStop,
-  onValueChange,
-  value,
-}: ChatComposerProps) {
+export function ChatComposer({ className, describedBy }: ChatComposerProps) {
+  const [value, setValue] = useState("");
+  const sendMessage = useChatStore((state) => state.sendMessage);
+  const stop = useChatStore((state) => state.stop);
+  const isBusy = useChatStore(
+    (state) => state.status === "submitted" || state.status === "streaming"
+  );
   const isComposing = useRef(false);
+  const isSending = useRef(false);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const content = value.trim();
-      if (!content || isBusy) {
+      if (!content || isBusy || isSending.current || !sendMessage) {
         return;
       }
-      await onSend(content);
+      // Guard resubmits before the store publishes its batched busy state.
+      isSending.current = true;
+      setValue("");
+      try {
+        await sendMessage({ text: content });
+      } catch (error) {
+        isSending.current = false;
+        throw error;
+      }
+      isSending.current = false;
     },
-    [isBusy, onSend, value]
+    [isBusy, sendMessage, value]
   );
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
-      onValueChange(event.currentTarget.value);
+      setValue(event.currentTarget.value);
     },
-    [onValueChange]
+    []
   );
 
   const handleInputComposition = useCallback(
@@ -110,7 +115,7 @@ export function ChatComposer({
             <InputGroupButton
               aria-label="Stop generating"
               className="size-11"
-              onClick={onStop}
+              onClick={stop}
               size="icon-sm"
               type="button"
               variant="default"
@@ -121,7 +126,7 @@ export function ChatComposer({
             <InputGroupButton
               aria-label="Send message"
               className="size-11"
-              disabled={!value.trim()}
+              disabled={!(sendMessage && value.trim())}
               size="icon-sm"
               type="submit"
               variant="default"

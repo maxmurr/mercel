@@ -79,15 +79,21 @@ curl http://localhost:3002/api/mastra/agents/agent/generate \
 The response uses Mastra's native format, including `text`, usage, and execution
 metadata. Native streaming is available at
 `POST /api/mastra/agents/agent/stream`. The `/chat` page uses this existing
-endpoint through AI SDK's `useChat` and `src/lib/mastra-chat-transport.ts`.
-There is no separate `/api/chat` route.
+endpoint through `@ai-sdk-tools/store`'s `useChat` and
+`src/lib/mastra-chat-transport.ts`. There is no separate `/api/chat` route.
+`@ai-sdk/react` remains installed as the store's peer dependency.
 
 The transport converts native Mastra SSE text deltas into AI SDK UI messages.
 It sends the full conversation and a stable `requestContext.opencodeSessionId`
 UUID on each turn. New chat starts a new session. Stop, reset, and navigation
 abort the current request; failed replies can be retried without duplicating
-the user message. UI updates are throttled to 50 ms so streamed code blocks
-do not trigger a render for every token.
+the user message. The connection throttles token updates to 50 ms before the
+store batches them. `src/components/chat/chat-session.tsx` owns a store per
+conversation and isolates the full `useChat` subscription. The message list
+subscribes to IDs, each row to its message, and the composer to actions and busy
+state. Draft edits stay in the composer; streamed deltas do not re-render the
+page layout, preview, or completed messages. New chat remounts only the session,
+clearing its store and draft without reloading the preview.
 
 This is text-only chat with the existing assistant. Tool calls, approvals,
 persistent history, and app generation are not connected. The preview remains
