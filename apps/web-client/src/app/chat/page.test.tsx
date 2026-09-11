@@ -414,6 +414,132 @@ it("sends UI messages, renders markdown, and reuses history and routing sessions
   );
 });
 
+it("streams tool calls in order through running, done, failed, and refused states", async () => {
+  const stream = new TransformStream<unknown, unknown>();
+  const writer = stream.writable.getWriter();
+  fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
+  await renderPage();
+  await enterMessage("Fetch the docs");
+  await clickButton("Send message");
+  await act(async () => {
+    await writer.write({
+      payload: { id: "t1", text: "Looking." },
+      type: "text-delta",
+    });
+    await writer.write({ payload: { id: "t1" }, type: "text-end" });
+    await writer.write({
+      payload: { toolCallId: "call-1", toolName: "web_fetch" },
+      type: "tool-call-input-streaming-start",
+    });
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await flushChatUpdates();
+  const log = () => container.querySelector('[role="log"]');
+  const toolParts = () =>
+    Array.from(log()?.querySelectorAll('[data-slot="tool-part"]') ?? []);
+  expect(container.querySelector('[role="status"]')).toBeNull();
+  expect(toolParts().map((part) => part.getAttribute("data-status"))).toEqual([
+    "running",
+  ]);
+  expect(toolParts()[0]?.textContent).toBe("web_fetch");
+  expect(toolParts()[0]?.querySelector(".shimmer")?.textContent).toBe(
+    "web_fetch"
+  );
+
+  await act(async () => {
+    await writer.write({
+      payload: {
+        args: { __mastraMetadata: { hidden: true }, url: "https://a.dev" },
+        toolCallId: "call-1",
+        toolName: "web_fetch",
+      },
+      type: "tool-call",
+    });
+    await writer.write({
+      payload: {
+        result: { status: 200 },
+        toolCallId: "call-1",
+        toolName: "web_fetch",
+      },
+      type: "tool-result",
+    });
+    await writer.write({
+      payload: {
+        args: { command: "rm -rf ." },
+        toolCallId: "call-2",
+        toolName: "execute_command",
+      },
+      type: "tool-call",
+    });
+    await writer.write({
+      payload: {
+        error: { message: "Blocked" },
+        toolCallId: "call-2",
+        toolName: "execute_command",
+      },
+      type: "tool-error",
+    });
+    await writer.write({
+      payload: {
+        args: { path: "a.txt" },
+        toolCallId: "call-3",
+        toolName: "delete",
+      },
+      type: "tool-call",
+    });
+    await writer.write({
+      payload: { toolCallId: "call-3", toolName: "delete" },
+      type: "tool-output-denied",
+    });
+    await writer.write({
+      payload: { id: "t2", text: "All done." },
+      type: "text-delta",
+    });
+    await writer.write({ type: "finish" });
+    await writer.close();
+  });
+  await flushChatUpdates();
+  expect(toolParts().map((part) => part.getAttribute("data-status"))).toEqual([
+    "done",
+    "failed",
+    "denied",
+  ]);
+  const reply = log()?.querySelectorAll('[data-slot="message"]')[1];
+  expect(reply?.textContent).toBe(
+    "Looking.web_fetchexecute_commanddeleteAll done."
+  );
+  const expand = (index: number) =>
+    act(() =>
+      toolParts()[index]?.querySelector<HTMLButtonElement>("button")?.click()
+    );
+  const code = (index: number) =>
+    toolParts()[index]?.querySelector('[data-streamdown="code-block-body"]')
+      ?.textContent;
+  await expand(0);
+  expect(code(0)).toBe('{  "status": 200}');
+  await expand(1);
+  expect(code(1)).toBe("Blocked");
+  await expand(2);
+  expect(code(2)).toBe('{  "path": "a.txt"}');
+  const history = await (async () => {
+    await enterMessage("Thanks");
+    await clickButton("Send message");
+    return (await getChatRequest(1).json()).messages[1].parts;
+  })();
+  expect(history).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        input: { url: "https://a.dev" },
+        output: { status: 200 },
+        state: "output-available",
+        toolCallId: "call-1",
+      }),
+      expect.objectContaining({ errorText: "Blocked", state: "output-error" }),
+      expect.objectContaining({ state: "output-denied", toolCallId: "call-3" }),
+    ])
+  );
+});
+
 it("renders partial replies and stops streaming without losing drafts", async () => {
   const { promise, resolve } = Promise.withResolvers<Response>();
   fetchMock.mockReturnValueOnce(promise);

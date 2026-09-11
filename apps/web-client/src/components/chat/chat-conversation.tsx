@@ -5,9 +5,11 @@ import {
   useMessageById,
   useMessageIds,
 } from "@ai-sdk-tools/store";
+import { isToolUIPart, type UIMessage } from "ai";
 import { MessageSquareIcon } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { Reasoning } from "@/components/ai-elements/reasoning";
+import { ToolPart } from "@/components/ai-elements/tool";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import {
   Empty,
@@ -30,6 +32,49 @@ import { Spinner } from "@/components/ui/spinner";
 const streamdownClassName =
   "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
 
+function AssistantPart({
+  isStreaming,
+  part,
+}: {
+  isStreaming: boolean;
+  part: UIMessage["parts"][number];
+}) {
+  if (isToolUIPart(part)) {
+    return <ToolPart part={part} />;
+  }
+  if (part.type !== "text" && part.type !== "reasoning") {
+    return null;
+  }
+  if (!part.text) {
+    return null;
+  }
+  const markdown = (
+    <Streamdown
+      className={streamdownClassName}
+      isAnimating={isStreaming}
+      mode={isStreaming ? "streaming" : "static"}
+      skipHtml
+    >
+      {part.text}
+    </Streamdown>
+  );
+  if (part.type === "reasoning") {
+    return <Reasoning isStreaming={isStreaming}>{markdown}</Reasoning>;
+  }
+  return (
+    <Bubble variant="ghost">
+      <BubbleContent className="wrap-anywhere">{markdown}</BubbleContent>
+    </Bubble>
+  );
+}
+
+function hasVisibleContent(part: UIMessage["parts"][number]) {
+  return (
+    ((part.type === "text" || part.type === "reasoning") && part.text !== "") ||
+    isToolUIPart(part)
+  );
+}
+
 function ChatMessageItem({ messageId }: { messageId: string }) {
   const message = useMessageById(messageId);
   const isStreaming = useChatStore(
@@ -37,15 +82,8 @@ function ChatMessageItem({ messageId }: { messageId: string }) {
       state.status === "streaming" && state.getLastMessageId() === messageId
   );
   const isUser = message.role === "user";
-  const content = message.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("\n\n");
-  const reasoning = message.parts
-    .flatMap((part) => (part.type === "reasoning" ? [part.text] : []))
-    .join("\n\n");
-  const isReasoning = isStreaming && message.parts.at(-1)?.type === "reasoning";
 
-  if (!(content || reasoning)) {
+  if (!message.parts.some(hasVisibleContent)) {
     return null;
   }
 
@@ -53,35 +91,26 @@ function ChatMessageItem({ messageId }: { messageId: string }) {
     <MessageScrollerItem messageId={message.id} scrollAnchor={isUser}>
       <Message align={isUser ? "end" : "start"}>
         <MessageContent>
-          {reasoning && (
-            <Reasoning isStreaming={isReasoning}>
-              <Streamdown
-                className={streamdownClassName}
-                isAnimating={isReasoning}
-                mode={isReasoning ? "streaming" : "static"}
-                skipHtml
-              >
-                {reasoning}
-              </Streamdown>
-            </Reasoning>
-          )}
-          {content && (
-            <Bubble variant={isUser ? "secondary" : "ghost"}>
+          {isUser ? (
+            <Bubble variant="secondary">
               <BubbleContent className="wrap-anywhere">
-                {isUser ? (
-                  <p className="whitespace-pre-wrap">{content}</p>
-                ) : (
-                  <Streamdown
-                    className={streamdownClassName}
-                    isAnimating={isStreaming}
-                    mode={isStreaming ? "streaming" : "static"}
-                    skipHtml
-                  >
-                    {content}
-                  </Streamdown>
-                )}
+                <p className="whitespace-pre-wrap">
+                  {message.parts
+                    .flatMap((part) =>
+                      part.type === "text" ? [part.text] : []
+                    )
+                    .join("\n\n")}
+                </p>
               </BubbleContent>
             </Bubble>
+          ) : (
+            message.parts.map((part, index) => (
+              <AssistantPart
+                isStreaming={isStreaming && index === message.parts.length - 1}
+                key={isToolUIPart(part) ? part.toolCallId : index}
+                part={part}
+              />
+            ))
           )}
         </MessageContent>
       </Message>
@@ -96,10 +125,7 @@ function ChatPendingReply() {
       state.status === "submitted" ||
       (state.status === "streaming" &&
         (lastMessage?.role !== "assistant" ||
-          !lastMessage.parts.some(
-            (part) =>
-              (part.type === "text" || part.type === "reasoning") && part.text
-          )))
+          !lastMessage.parts.some(hasVisibleContent)))
     );
   });
 

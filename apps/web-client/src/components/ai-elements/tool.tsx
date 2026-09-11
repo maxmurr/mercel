@@ -1,0 +1,122 @@
+"use client";
+
+import type { DynamicToolUIPart, ToolUIPart } from "ai";
+import { getToolName } from "ai";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  HourglassIcon,
+  ShieldXIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { CodeBlock, CodeBlockCopyButton } from "streamdown";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
+
+type ToolPartValue = ToolUIPart | DynamicToolUIPart;
+
+// No --warning token in this theme, so refusals borrow the console's warn color.
+const warningClassName =
+  "text-amber-600 hover:text-amber-600/80 dark:text-amber-400 dark:hover:text-amber-400/80";
+
+const statusStyles = {
+  denied: { className: warningClassName, icon: <ShieldXIcon /> },
+  done: { className: "hover:text-foreground", icon: <CheckIcon /> },
+  failed: {
+    className: "text-destructive hover:text-destructive/80",
+    icon: <TriangleAlertIcon />,
+  },
+  pending: { className: warningClassName, icon: <HourglassIcon /> },
+  running: {
+    className: "hover:text-foreground",
+    icon: (
+      <Spinner className="motion-reduce:animate-none" role="presentation" />
+    ),
+  },
+} satisfies Record<string, { className: string; icon: ReactNode }>;
+
+type Status = keyof typeof statusStyles;
+
+function statusOf(part: ToolPartValue): Status {
+  switch (part.state) {
+    case "output-available":
+      return "done";
+    case "output-error":
+      return "failed";
+    case "output-denied":
+      return "denied";
+    case "approval-requested":
+    case "approval-responded":
+      return "pending";
+    default:
+      return "running";
+  }
+}
+
+/** Picks what to print: the result once it came back, the error if it failed, otherwise what went in. */
+function payloadOf(part: ToolPartValue) {
+  if (part.state === "output-error") {
+    return { code: part.errorText, language: "text" };
+  }
+  const value = part.state === "output-available" ? part.output : part.input;
+  if (typeof value === "string") {
+    return { code: value, language: "text" };
+  }
+  return {
+    code: JSON.stringify(value ?? {}, null, 2) ?? String(value),
+    language: "json",
+  };
+}
+
+/** Shows one tool call as a marker row; expanding prints its input or result as a copyable code block. */
+export function ToolPart({
+  className,
+  part,
+}: {
+  className?: string;
+  part: ToolPartValue;
+}) {
+  const status = statusOf(part);
+  const { code, language } = payloadOf(part);
+
+  return (
+    <Collapsible
+      className={cn("flex w-full min-w-0 flex-col", className)}
+      data-slot="tool-part"
+      data-status={status}
+    >
+      <Marker
+        className={cn(
+          "min-h-11 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          statusStyles[status].className
+        )}
+        render={<CollapsibleTrigger />}
+      >
+        <MarkerIcon>{statusStyles[status].icon}</MarkerIcon>
+        <MarkerContent
+          className={cn(
+            "flex-1 truncate",
+            status === "running" && "shimmer forced-colors:shimmer-none"
+          )}
+        >
+          {getToolName(part)}
+        </MarkerContent>
+        <MarkerIcon>
+          <ChevronDownIcon className="transition-transform group-aria-expanded/marker:rotate-180 motion-reduce:transition-none" />
+        </MarkerIcon>
+      </Marker>
+      <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none [&_[data-streamdown=code-block]]:my-0">
+        <CodeBlock code={code} language={language} lineNumbers={false}>
+          <CodeBlockCopyButton />
+        </CodeBlock>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
