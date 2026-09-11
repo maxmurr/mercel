@@ -30,10 +30,13 @@ in Studio's request context for each turn. Independent calls get separate IDs.
 For HTTP calls, pass the UUID as `requestContext.opencodeSessionId` in the JSON
 body to reuse a routing session across turns. This does not enable memory.
 
-Add your OpenCode Go key to `apps/web-client/.env.local`:
+Add your OpenCode Go key to `apps/web-client/.env.local`. The agent always
+loads Exa web search and fetch tools from Exa's hosted MCP server, which works
+without a key on a rate-limited free plan; set `EXA_API_KEY` to lift the limit.
 
 ```dotenv
 OPENCODE_API_KEY=your-opencode-api-key
+EXA_API_KEY=your-exa-api-key
 ```
 
 Keep the key server-only, never in a `NEXT_PUBLIC_*` variable. Import Mastra from

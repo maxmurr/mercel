@@ -99,6 +99,12 @@ it.each([undefined, "86d8bb97-5293-47c7-9c19-1b53bbf6b17d"])(
   }
 );
 
+it("merges Exa MCP tools with the built-in tools", async () => {
+  const tools = await mastra.getAgentById("agent").listTools();
+
+  expect(Object.keys(tools)).toEqual(["web_fetch", "exa_web_search_exa"]);
+});
+
 it("rejects invalid routing session IDs before calling the provider", async () => {
   vi.stubEnv("OPENCODE_API_KEY", "test-key");
   const fetchMock = vi.fn<typeof fetch>();
