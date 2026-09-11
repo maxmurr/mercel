@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Agent } from "@mastra/core/agent";
 import { smoothStream } from "@mastra/core/stream";
+import { webFetchTool } from "@mastra/core/tools";
 import {
   LocalFilesystem,
   LocalSandbox,
@@ -35,6 +36,9 @@ export const agent = new Agent({
   requestContextSchema: z.object({
     opencodeSessionId: z.uuid().optional(),
   }),
+  tools: {
+    web_fetch: webFetchTool,
+  },
   workspace: new Workspace({
     bm25: true,
     filesystem: new LocalFilesystem({ basePath: workspaceDir }),
