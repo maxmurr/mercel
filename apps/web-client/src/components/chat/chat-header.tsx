@@ -36,11 +36,11 @@ export function ChatHeader({ className, onNewChat, title }: ChatHeaderProps) {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <ThemeSwitcher />
-        <Button className="h-11" onClick={onNewChat} variant="outline">
+        <Button className="h-10" onClick={onNewChat} variant="outline">
           <PlusIcon data-icon="inline-start" />
           New chat
         </Button>
-        <Button className="h-11" variant="outline">
+        <Button className="h-11" variant="default">
           <UploadIcon data-icon="inline-start" />
           Publish
         </Button>
