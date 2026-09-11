@@ -23,6 +23,13 @@ points to `apps/web-client/src/*`.
 `opencode-go/deepseek-flash`, through Mastra's model router, with no tools or
 conversation memory.
 
+OpenCode Go requires `x-opencode-session` and a client-specific `User-Agent`.
+The agent sends both. It stores a generated session UUID in request context;
+reuse that context across turns, or provide the same `opencodeSessionId` UUID
+in Studio's request context for each turn. Independent calls get separate IDs.
+For HTTP calls, pass the UUID as `requestContext.opencodeSessionId` in the JSON
+body to reuse a routing session across turns. This does not enable memory.
+
 Add your OpenCode Go key to `apps/web-client/.env.local`:
 
 ```dotenv
@@ -47,8 +54,41 @@ Open http://localhost:4111 and select **Agent** to chat. In server code,
 call `await mastra.getAgentById("agent").generate("Hello!")` and read
 `result.text` from the returned result.
 
-`bun run dev:web` still starts Next.js on port 3002. Generated Studio files stay
-in the ignored `.mastra/` directory. This setup does not add a Next.js chat route.
+Generated Studio files stay in the ignored `.mastra/` directory.
+
+### Native Mastra API in Next.js
+
+`src/app/api/mastra/[...mastra]/route.ts` mounts `createNextRouteHandler` from
+`@mastra/next` at `/api/mastra`. Start Next.js with `bun run dev:web`; the separate
+Mastra server is not required.
+
+List agents without calling a model:
+
+```sh
+curl http://localhost:3002/api/mastra/agents
+```
+
+Generate a reply:
+
+```sh
+curl http://localhost:3002/api/mastra/agents/agent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Write a JavaScript function that adds two numbers."}]}'
+```
+
+The response uses Mastra's native format, including `text`, usage, and execution
+metadata. Native streaming is available at
+`POST /api/mastra/agents/agent/stream`. The custom `/api/chat` route is removed;
+clients must send `messages` rather than `message`. The existing chat page is
+not wired to this API.
+
+The adapter handles routing, validation, errors, and request cancellation. Its
+default body limit is 4.5 MB. Configure it with `server.bodySizeLimit` on the
+Mastra instance. See the [Next.js adapter reference](https://mastra.ai/reference/server/next-adapter).
+
+This exposes Mastra's full API, with no authentication or rate limiting configured.
+Keep it local until those controls are added; anyone with access can run agents
+and spend your model quota.
 
 ## Deploy and preview
 

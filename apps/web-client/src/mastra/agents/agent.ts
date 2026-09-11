@@ -1,9 +1,25 @@
+import { randomUUID } from "node:crypto";
 import { Agent } from "@mastra/core/agent";
+import { z } from "zod";
 
-/** Simple assistant; reads OPENCODE_API_KEY on the server. */
+/** Reuse request context across turns to keep the OpenCode routing session stable. */
 export const agent = new Agent({
   id: "agent",
   instructions: "You are a helpful assistant. Give clear, concise answers.",
-  model: "opencode-go/deepseek-flash",
+  model: ({ requestContext }) => {
+    const sessionId = requestContext.get("opencodeSessionId") ?? randomUUID();
+    requestContext.set("opencodeSessionId", sessionId);
+
+    return {
+      headers: {
+        "User-Agent": "mercel/0.1.0",
+        "x-opencode-session": sessionId,
+      },
+      id: "opencode-go/deepseek-flash",
+    };
+  },
   name: "Agent",
+  requestContextSchema: z.object({
+    opencodeSessionId: z.uuid().optional(),
+  }),
 });

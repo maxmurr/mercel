@@ -1,7 +1,29 @@
 // @vitest-environment node
 
-import { expect, it } from "vitest";
+import { RequestContext } from "@mastra/core/request-context";
+import { afterEach, expect, it, vi } from "vitest";
+import { POST } from "../../app/api/mastra/[...mastra]/route";
 import { mastra } from "../index";
+
+const completionResponse = {
+  choices: [
+    {
+      finish_reason: "stop",
+      index: 0,
+      message: { content: "Hello!", role: "assistant" },
+    },
+  ],
+  created: 0,
+  id: "test-completion",
+  model: "deepseek-flash",
+  object: "chat.completion",
+  usage: { completion_tokens: 1, prompt_tokens: 1, total_tokens: 2 },
+};
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 it("registers Agent with DeepSeek V4.1 Flash through OpenCode Go", async () => {
   const agent = mastra.getAgentById("agent");
@@ -10,4 +32,82 @@ it("registers Agent with DeepSeek V4.1 Flash through OpenCode Go", async () => {
   expect(agent.name).toBe("Agent");
   expect(model.provider).toBe("opencode-go");
   expect(model.modelId).toBe("deepseek-flash");
+});
+
+it("sends OpenCode Go session and client headers on the actual model request", async () => {
+  vi.stubEnv("OPENCODE_API_KEY", "test-key");
+  const fetchMock = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(Response.json(completionResponse));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await POST(
+    new Request("http://localhost:3002/api/mastra/agents/agent/generate", {
+      body: JSON.stringify({ messages: [{ content: "Hello", role: "user" }] }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    })
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ text: "Hello!" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  const [call] = fetchMock.mock.calls;
+  expect(call).toBeDefined();
+  if (!call) {
+    throw new Error("Missing provider request");
+  }
+  const request = new Request(...call);
+  expect(request.url).toBe("https://opencode.ai/zen/go/v1/chat/completions");
+  expect(request.headers.get("x-opencode-session")).toBeTruthy();
+  expect(request.headers.get("user-agent")).toContain("mercel/0.1.0");
+  expect(request.headers.get("authorization")).toBe("Bearer test-key");
+});
+
+it.each([undefined, "86d8bb97-5293-47c7-9c19-1b53bbf6b17d"])(
+  "keeps session %# stable without sharing it between independent runs",
+  async (sessionId) => {
+    vi.stubEnv("OPENCODE_API_KEY", "test-key");
+    const fetchMock = vi.fn<typeof fetch>(() =>
+      Promise.resolve(Response.json(completionResponse))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const agent = mastra.getAgentById("agent");
+    const requestContext = new RequestContext();
+    if (sessionId) {
+      requestContext.set("opencodeSessionId", sessionId);
+    }
+
+    await agent.generate("First turn", { requestContext });
+    await agent.generate("Second turn", { requestContext });
+    await Promise.all([
+      agent.generate("Independent conversation A"),
+      agent.generate("Independent conversation B"),
+    ]);
+
+    const sessionIds = fetchMock.mock.calls.map((call) =>
+      new Request(...call).headers.get("x-opencode-session")
+    );
+    expect(sessionIds).toHaveLength(4);
+    const conversationSessionId =
+      sessionId ?? requestContext.getRaw("opencodeSessionId");
+    expect(sessionIds.slice(0, 2)).toEqual([
+      conversationSessionId,
+      conversationSessionId,
+    ]);
+    expect(sessionIds.every(Boolean)).toBe(true);
+    expect(new Set(sessionIds).size).toBe(3);
+  }
+);
+
+it("rejects invalid routing session IDs before calling the provider", async () => {
+  vi.stubEnv("OPENCODE_API_KEY", "test-key");
+  const fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(
+    mastra.getAgentById("agent").generate("Hello", {
+      requestContext: new RequestContext([["opencodeSessionId", "invalid"]]),
+    })
+  ).rejects.toThrow();
+  expect(fetchMock).not.toHaveBeenCalled();
 });
