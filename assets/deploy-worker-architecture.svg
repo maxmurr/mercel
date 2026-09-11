@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="260" viewBox="0 0 1440 260" role="img" aria-labelledby="title description" font-family="Helvetica, Arial, sans-serif">
+  <title id="title">Deploy worker</title>
+  <desc id="description">The worker consumes a Redis job, reads source from S3-compatible storage, builds the app in Docker, publishes built assets to storage, and updates deployment status in Postgres. This is the high-level success path. Build containers are not a hardened sandbox for hostile tenants.</desc>
+  <metadata>{"sources": ["apps/deploy-worker/src/deploy-worker.ts", "packages/utils/src/build-app.ts", "packages/utils/src/download-folder-from-s3.ts", "packages/utils/src/upload-folder-to-s3.ts", "packages/db/src/deployments.ts"], "level": "high-level"}</metadata>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#626262" stroke-width="1.5" />
+    </marker>
+    <symbol id="icon-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m12 2 9 5v10l-9 5-9-5V7l9-5ZM3 7l9 5 9-5M12 12v10M7.5 4.5l9 5" />
+    </symbol>
+    <symbol id="icon-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0" />
+    </symbol>
+    <symbol id="icon-queue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="3" width="16" height="4" rx="1" />
+      <rect x="4" y="10" width="16" height="4" rx="1" />
+      <rect x="4" y="17" width="16" height="4" rx="1" />
+    </symbol>
+    <symbol id="icon-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="m7 9 3 3-3 3m6 0h4" />
+    </symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 15V3m-4 4 4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+    </symbol>
+  </defs>
+  <rect width="1440" height="260" fill="#030303" />
+  <text x="40" y="40" font-size="24" fill="#c4c4c4" text-anchor="start">Deploy worker</text>
+  <g id="consume" data-kind="node">
+    <rect x="40" y="120" width="208" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="56" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Take job</text>
+    <text x="56" y="184.0" font-size="15" fill="#929292" text-anchor="start">Redis</text>
+    <g aria-hidden="true" transform="translate(200 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-queue" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="download" data-kind="node">
+    <rect x="328" y="120" width="208" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="344" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Read source</text>
+    <text x="344" y="184.0" font-size="15" fill="#929292" text-anchor="start">S3</text>
+    <g aria-hidden="true" transform="translate(488 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-box" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="build" data-kind="node">
+    <rect x="616" y="120" width="208" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="632" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Build app</text>
+    <text x="632" y="184.0" font-size="15" fill="#929292" text-anchor="start">Docker</text>
+    <g aria-hidden="true" transform="translate(776 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-terminal" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="publish" data-kind="node">
+    <rect x="904" y="120" width="208" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="920" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Publish assets</text>
+    <text x="920" y="184.0" font-size="15" fill="#929292" text-anchor="start">S3</text>
+    <g aria-hidden="true" transform="translate(1064 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-upload" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="complete" data-kind="node">
+    <rect x="1192" y="120" width="208" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="1208" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Update status</text>
+    <text x="1208" y="184.0" font-size="15" fill="#929292" text-anchor="start">Postgres</text>
+    <g aria-hidden="true" transform="translate(1352 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-database" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <polyline id="job-source" data-from="consume" data-to="download" points="256,165 320,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <polyline id="source-ready" data-from="download" data-to="build" points="544,165 608,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <polyline id="build-ready" data-from="build" data-to="publish" points="832,165 896,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <polyline id="deployment-completed" data-from="publish" data-to="complete" points="1120,165 1184,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+</svg>

@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="660" viewBox="0 0 1320 660" role="img" aria-labelledby="title description" font-family="Helvetica, Arial, sans-serif">
+  <title id="title">Deployment overview</title>
+  <desc id="description">The web client submits repository URLs and polls status. The upload server clones Git, stores source in S3-compatible storage, and queues work in Redis. The worker reads source, builds in Docker, publishes assets, and records deployment status in Postgres. The request handler serves built assets to site visitors. Ports shown are local defaults.</desc>
+  <metadata>{"sources": ["apps/upload-server/src/upload-server.ts", "apps/deploy-worker/src/deploy-worker.ts", "apps/request-handler-server/src/request-handler-server.ts", "apps/web-client/src/lib/deployment.ts", "apps/web-client/src/components/new-project/new-project-form.tsx", "packages/utils/src/build-app.ts", "compose.yml"], "level": "high-level"}</metadata>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#626262" stroke-width="1.5" />
+    </marker>
+    <symbol id="icon-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m12 2 9 5v10l-9 5-9-5V7l9-5ZM3 7l9 5 9-5M12 12v10M7.5 4.5l9 5" />
+    </symbol>
+    <symbol id="icon-browser" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M7 6.5h.01M10 6.5h.01" />
+    </symbol>
+    <symbol id="icon-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0" />
+    </symbol>
+    <symbol id="icon-git" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="5" r="2" />
+      <path d="M6 7v10M18 7v2a6 6 0 0 1-6 6H6" />
+    </symbol>
+    <symbol id="icon-queue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="3" width="16" height="4" rx="1" />
+      <rect x="4" y="10" width="16" height="4" rx="1" />
+      <rect x="4" y="17" width="16" height="4" rx="1" />
+    </symbol>
+    <symbol id="icon-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="7" rx="2" />
+      <rect x="3" y="14" width="18" height="7" rx="2" />
+      <path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6" />
+    </symbol>
+    <symbol id="icon-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="m7 9 3 3-3 3m6 0h4" />
+    </symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 15V3m-4 4 4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+    </symbol>
+  </defs>
+  <rect width="1320" height="660" fill="#030303" />
+  <text x="40" y="40" font-size="24" fill="#c4c4c4" text-anchor="start">Deployment overview</text>
+  <g id="git" data-kind="node">
+    <rect x="380" y="70" width="220" height="80" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="396" y="116.0" font-size="18" fill="#c4c4c4" text-anchor="start">Git repo</text>
+    <g aria-hidden="true" transform="translate(552 94.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-git" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="postgres" data-kind="node">
+    <rect x="800" y="70" width="220" height="80" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="816" y="105.0" font-size="18" fill="#c4c4c4" text-anchor="start">Postgres</text>
+    <text x="816" y="129.0" font-size="15" fill="#929292" text-anchor="start">Deployment status</text>
+    <g aria-hidden="true" transform="translate(972 94.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-database" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="browser" data-kind="node">
+    <rect x="40" y="250" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="56" y="290.0" font-size="18" fill="#c4c4c4" text-anchor="start">Web client</text>
+    <text x="56" y="314.0" font-size="15" fill="#929292" text-anchor="start">:3002</text>
+    <g aria-hidden="true" transform="translate(212 279.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-browser" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="upload" data-kind="node">
+    <rect x="380" y="250" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="396" y="290.0" font-size="18" fill="#c4c4c4" text-anchor="start">Upload server</text>
+    <text x="396" y="314.0" font-size="15" fill="#929292" text-anchor="start">:3000</text>
+    <g aria-hidden="true" transform="translate(552 279.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-upload" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="queue" data-kind="node">
+    <rect x="720" y="250" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="736" y="290.0" font-size="18" fill="#c4c4c4" text-anchor="start">Job queue</text>
+    <text x="736" y="314.0" font-size="15" fill="#929292" text-anchor="start">Redis / BullMQ</text>
+    <g aria-hidden="true" transform="translate(892 279.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-queue" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="worker" data-kind="node">
+    <rect x="1060" y="250" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="1076" y="290.0" font-size="18" fill="#c4c4c4" text-anchor="start">Deploy worker</text>
+    <text x="1076" y="314.0" font-size="15" fill="#929292" text-anchor="start">Build in Docker</text>
+    <g aria-hidden="true" transform="translate(1232 279.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-terminal" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="request" data-kind="node">
+    <rect x="40" y="520" width="240" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="56" y="560.0" font-size="18" fill="#c4c4c4" text-anchor="start">Request handler</text>
+    <text x="56" y="584.0" font-size="15" fill="#929292" text-anchor="start">:3001</text>
+    <g aria-hidden="true" transform="translate(232 549.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-server" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="storage" data-kind="node">
+    <rect x="1000" y="520" width="280" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="1016" y="560.0" font-size="18" fill="#c4c4c4" text-anchor="start">S3 storage</text>
+    <text x="1016" y="584.0" font-size="15" fill="#929292" text-anchor="start">Source + built assets</text>
+    <g aria-hidden="true" transform="translate(1232 549.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-box" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <polyline id="post-deploy" data-from="browser" data-to="upload" points="268,295 372,295" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <text x="320" y="276" font-size="15" fill="#929292" text-anchor="middle">Deploy / status</text>
+  <polyline id="clone-git" data-from="upload" data-to="git" points="490,242 490,158" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <text x="512" y="205" font-size="15" fill="#929292" text-anchor="start">Clone</text>
+  <polyline id="upload-status" data-from="upload" data-to="postgres" points="570,242 570,190 650,190 650,110 792,110" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" marker-start="url(#arrow)" data-direction="both" />
+  <text x="720" y="90" font-size="15" fill="#929292" text-anchor="middle">Status</text>
+  <polyline id="build-status" data-from="worker" data-to="postgres" points="1170,242 1170,110 1028,110" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <text x="1100" y="90" font-size="15" fill="#929292" text-anchor="middle">Status</text>
+  <polyline id="enqueue-job" data-from="upload" data-to="queue" points="608,295 712,295" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <text x="660" y="276" font-size="15" fill="#929292" text-anchor="middle">Enqueue</text>
+  <polyline id="consume-job" data-from="queue" data-to="worker" points="948,295 1052,295" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <text x="1000" y="276" font-size="15" fill="#929292" text-anchor="middle">Run job</text>
+  <polyline id="upload-sources" data-from="upload" data-to="storage" points="490,348 490,552 992,552" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <text x="745" y="532" font-size="15" fill="#929292" text-anchor="middle">Store source</text>
+  <polyline id="worker-storage" data-from="worker" data-to="storage" points="1170,348 1170,512" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" marker-start="url(#arrow)" data-direction="both" />
+  <text x="1190" y="430" font-size="15" fill="#929292" text-anchor="start">Read / write</text>
+  <polyline id="visit-preview" data-from="browser" data-to="request" points="150,348 150,512" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <text x="172" y="430" font-size="15" fill="#929292" text-anchor="start">Visit site</text>
+  <polyline id="fetch-assets" data-from="request" data-to="storage" points="288,592 992,592" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <text x="640" y="574" font-size="15" fill="#929292" text-anchor="middle">Fetch assets</text>
+</svg>

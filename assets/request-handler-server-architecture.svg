@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="260" viewBox="0 0 1260 260" role="img" aria-labelledby="title description" font-family="Helvetica, Arial, sans-serif">
+  <title id="title">Request handler · :3001</title>
+  <desc id="description">The request handler receives a site request, resolves its hostname and path, fetches built assets from S3-compatible storage, and streams the site to the browser. It does not query Postgres or Redis.</desc>
+  <metadata>{"sources": ["apps/request-handler-server/src/request-handler-server.ts", "packages/utils/src/id.ts", "packages/utils/src/s3.ts", "apps/web-client/src/lib/deployment.ts", "apps/web-client/README.md"], "level": "high-level"}</metadata>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#626262" stroke-width="1.5" />
+    </marker>
+    <symbol id="icon-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m12 2 9 5v10l-9 5-9-5V7l9-5ZM3 7l9 5 9-5M12 12v10M7.5 4.5l9 5" />
+    </symbol>
+    <symbol id="icon-browser" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M7 6.5h.01M10 6.5h.01" />
+    </symbol>
+    <symbol id="icon-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="7" rx="2" />
+      <rect x="3" y="14" width="18" height="7" rx="2" />
+      <path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6" />
+    </symbol>
+  </defs>
+  <rect width="1260" height="260" fill="#030303" />
+  <text x="40" y="40" font-size="24" fill="#c4c4c4" text-anchor="start">Request handler · :3001</text>
+  <g id="browser" data-kind="node">
+    <rect x="40" y="120" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="56" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Site request</text>
+    <text x="56" y="184.0" font-size="15" fill="#929292" text-anchor="start">Browser</text>
+    <g aria-hidden="true" transform="translate(212 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-browser" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="resolve" data-kind="node">
+    <rect x="360" y="120" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="376" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Resolve site</text>
+    <text x="376" y="184.0" font-size="15" fill="#929292" text-anchor="start">Hostname + path</text>
+    <g aria-hidden="true" transform="translate(532 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-server" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="fetch" data-kind="node">
+    <rect x="680" y="120" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="696" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Fetch assets</text>
+    <text x="696" y="184.0" font-size="15" fill="#929292" text-anchor="start">S3</text>
+    <g aria-hidden="true" transform="translate(852 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-box" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="serve" data-kind="node">
+    <rect x="1000" y="120" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="1016" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Serve site</text>
+    <text x="1016" y="184.0" font-size="15" fill="#929292" text-anchor="start">Browser</text>
+    <g aria-hidden="true" transform="translate(1172 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-browser" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <polyline id="http-request" data-from="browser" data-to="resolve" points="268,165 352,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <polyline id="safe-path" data-from="resolve" data-to="fetch" points="588,165 672,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <polyline id="object-found" data-from="fetch" data-to="serve" points="908,165 992,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+</svg>

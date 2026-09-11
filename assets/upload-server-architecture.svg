@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="260" viewBox="0 0 1260 260" role="img" aria-labelledby="title description" font-family="Helvetica, Arial, sans-serif">
+  <title id="title">Upload server · :3000</title>
+  <desc id="description">The upload server clones the submitted repository, saves source to S3-compatible storage, queues a build in Redis, and returns a deployment ID. Returning an ID means queued, not built. Deployment status is stored in Postgres and exposed for polling, as shown in the overview.</desc>
+  <metadata>{"sources": ["apps/upload-server/src/upload-server.ts", "packages/db/src/deployments.ts", "packages/db/src/schema.ts", "apps/web-client/src/components/new-project/new-project-form.tsx"], "level": "high-level"}</metadata>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#626262" stroke-width="1.5" />
+    </marker>
+    <symbol id="icon-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m12 2 9 5v10l-9 5-9-5V7l9-5ZM3 7l9 5 9-5M12 12v10M7.5 4.5l9 5" />
+    </symbol>
+    <symbol id="icon-browser" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M7 6.5h.01M10 6.5h.01" />
+    </symbol>
+    <symbol id="icon-git" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="5" r="2" />
+      <path d="M6 7v10M18 7v2a6 6 0 0 1-6 6H6" />
+    </symbol>
+    <symbol id="icon-queue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="3" width="16" height="4" rx="1" />
+      <rect x="4" y="10" width="16" height="4" rx="1" />
+      <rect x="4" y="17" width="16" height="4" rx="1" />
+    </symbol>
+  </defs>
+  <rect width="1260" height="260" fill="#030303" />
+  <text x="40" y="40" font-size="24" fill="#c4c4c4" text-anchor="start">Upload server · :3000</text>
+  <g id="clone" data-kind="node">
+    <rect x="40" y="120" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="56" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Clone repo</text>
+    <text x="56" y="184.0" font-size="15" fill="#929292" text-anchor="start">Repository URL</text>
+    <g aria-hidden="true" transform="translate(212 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-git" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="source-upload" data-kind="node">
+    <rect x="360" y="120" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="376" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Store source</text>
+    <text x="376" y="184.0" font-size="15" fill="#929292" text-anchor="start">S3</text>
+    <g aria-hidden="true" transform="translate(532 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-box" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="publish" data-kind="node">
+    <rect x="680" y="120" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="696" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Queue build</text>
+    <text x="696" y="184.0" font-size="15" fill="#929292" text-anchor="start">Redis</text>
+    <g aria-hidden="true" transform="translate(852 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-queue" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <g id="accepted" data-kind="node">
+    <rect x="1000" y="120" width="220" height="90" rx="12" fill="#0e0e0e" stroke="#353535" stroke-width="1" />
+    <text x="1016" y="160.0" font-size="18" fill="#c4c4c4" text-anchor="start">Return ID</text>
+    <text x="1016" y="184.0" font-size="15" fill="#929292" text-anchor="start">Queued</text>
+    <g aria-hidden="true" transform="translate(1172 149.0)" color="#a3a3a3">
+      <rect width="32" height="32" rx="8" fill="#030303" stroke="#353535" />
+      <use href="#icon-browser" x="7" y="7" width="18" height="18" />
+    </g>
+  </g>
+  <polyline id="cloned-source" data-from="clone" data-to="source-upload" points="268,165 352,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <polyline id="all-uploaded" data-from="source-upload" data-to="publish" points="588,165 672,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+  <polyline id="queue-accepted" data-from="publish" data-to="accepted" points="908,165 992,165" fill="none" stroke="#626262" stroke-width="1" stroke-linejoin="round" marker-end="url(#arrow)" />
+</svg>
