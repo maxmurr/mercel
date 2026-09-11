@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftIcon, PlusIcon, UploadIcon } from "lucide-react";
 import Link from "next/link";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,10 @@ export function ChatHeader({ className, onNewChat, title }: ChatHeaderProps) {
         <Button className="h-11" onClick={onNewChat} variant="outline">
           <PlusIcon data-icon="inline-start" />
           New chat
+        </Button>
+        <Button className="h-11" variant="outline">
+          <UploadIcon data-icon="inline-start" />
+          Publish
         </Button>
       </div>
     </header>

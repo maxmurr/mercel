@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import {
   WebPreview,
   WebPreviewBody,
+  WebPreviewConsole,
   WebPreviewNavigation,
   WebPreviewNavigationButton,
   WebPreviewUrl,
@@ -51,9 +52,7 @@ export function ChatPreview({ className, title, url }: ChatPreviewProps) {
         src={url}
         title={title}
       />
-      <p className="px-4 py-3 text-muted-foreground text-xs">
-        Static example. Chat messages do not change this preview.
-      </p>
+      <WebPreviewConsole />
     </WebPreview>
   );
 }

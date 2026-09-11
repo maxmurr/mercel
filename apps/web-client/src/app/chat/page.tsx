@@ -13,6 +13,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Keep script-enabled deployment previews on a separate origin from the web app.
@@ -37,10 +38,7 @@ export default function ChatPage() {
     <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground antialiased">
       <ChatHeader onNewChat={handleNewChat} title="Chat with Agent" />
       <Separator />
-      <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
-        <p className="text-muted-foreground text-xs" id="chat-notice">
-          Messages reset when you leave this page. Preview is a static example.
-        </p>
+      <div className="flex shrink-0 items-center justify-end gap-3 px-4 py-2 sm:px-6 lg:hidden">
         <Button
           aria-controls={
             mobilePanel === "chat" ? "preview-panel" : "chat-panel"
@@ -86,10 +84,25 @@ export default function ChatPage() {
           minSize="50%"
         >
           <ChatPanel aria-label="Example preview" id="preview-panel">
-            <ChatPreview
-              title="Agent skills example website"
-              url={previewUrl}
-            />
+            <Tabs className="h-full min-h-0 gap-0" defaultValue="preview">
+              <div className="shrink-0 border-b px-2">
+                <TabsList aria-label="Preview views" variant="line">
+                  <TabsTrigger value="preview">Preview</TabsTrigger>
+                  <TabsTrigger value="code">Code</TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent className="min-h-0" keepMounted value="preview">
+                <ChatPreview
+                  title="Agent skills example website"
+                  url={previewUrl}
+                />
+              </TabsContent>
+              <TabsContent className="min-h-0" value="code">
+                <p className="px-4 py-3 text-base/7 text-muted-foreground sm:text-sm/6">
+                  Nothing here yet.
+                </p>
+              </TabsContent>
+            </Tabs>
           </ChatPanel>
         </ResizablePanel>
       </ResizablePanelGroup>

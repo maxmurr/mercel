@@ -77,7 +77,7 @@ export function ChatSession({ id }: { id: string }) {
       <ChatConnection id={id} />
       <ChatConversation className="flex-1" />
       <ChatError />
-      <ChatComposer describedBy="chat-notice" />
+      <ChatComposer />
     </Provider>
   );
 }

@@ -210,6 +210,21 @@ it("starts empty and keeps the separate-origin preview and accessible layout", a
   expect(container.querySelector("button button, button a")).toBeNull();
   await clickButton("Reload preview");
   expect(container.querySelector("iframe")).not.toBe(preview);
+  expect(container.textContent).not.toContain("No console output.");
+  await clickButton("Console");
+  expect(container.textContent).toContain("No console output.");
+  expect(
+    Array.from(
+      container.querySelectorAll('[role="tab"]'),
+      (tab) => tab.textContent
+    )
+  ).toEqual(["Preview", "Code"]);
+  const reloadedPreview = container.querySelector("iframe");
+  await clickButton("Code");
+  expect(container.querySelector("iframe")).toBe(reloadedPreview);
+  expect(
+    container.querySelector('[role="tabpanel"]:not([hidden])')?.textContent
+  ).toBe("Nothing here yet.");
   await clickButton("Preview");
   expect(
     container
