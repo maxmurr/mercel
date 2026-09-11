@@ -15,7 +15,7 @@ const completionResponse = {
   ],
   created: 0,
   id: "test-completion",
-  model: "deepseek-flash",
+  model: "glm-5.3-flash",
   object: "chat.completion",
   usage: { completion_tokens: 1, prompt_tokens: 1, total_tokens: 2 },
 };
@@ -25,13 +25,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("registers Agent with DeepSeek V4.1 Flash through OpenCode Go", async () => {
+it("registers Agent with GLM 5.3 Flash through OpenCode Go", async () => {
   const agent = mastra.getAgentById("agent");
   const model = await agent.getModel();
 
   expect(agent.name).toBe("Agent");
   expect(model.provider).toBe("opencode-go");
-  expect(model.modelId).toBe("deepseek-flash");
+  expect(model.modelId).toBe("glm-5.3-flash");
 });
 
 it("sends OpenCode Go session and client headers on the actual model request", async () => {

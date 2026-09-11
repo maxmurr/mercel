@@ -28,7 +28,7 @@ export const agent = new Agent({
         "User-Agent": "mercel/0.1.0",
         "x-opencode-session": sessionId,
       },
-      id: "opencode-go/deepseek-flash",
+      id: "opencode-go/glm-5.3-flash",
     };
   },
   name: "Agent",
