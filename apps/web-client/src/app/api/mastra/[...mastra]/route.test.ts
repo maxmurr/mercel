@@ -6,21 +6,22 @@ import { MastraChatTransport } from "@/lib/mastra-chat-transport";
 import { GET, POST } from "./route";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
 
-function providerStream() {
+function providerStream(textChunks = ["Hello!"]) {
   const chunks = [
-    {
+    ...textChunks.map((content) => ({
       choices: [
         {
-          delta: { content: "Hello!", role: "assistant" },
+          delta: { content, role: "assistant" },
           finish_reason: null,
           index: 0,
         },
       ],
-    },
+    })),
     { choices: [{ delta: {}, finish_reason: "stop", index: 0 }] },
   ];
   return new Response(
@@ -122,6 +123,55 @@ it("converts the native agent stream into AI SDK messages with full history and 
     ])
   );
 });
+
+it.each([
+  { chunks: ["One two three."], expected: ["One ", "two ", "three."] },
+  { chunks: ["Next re", "ply."], expected: ["Next ", "reply."] },
+])(
+  "paces provider chunks $chunks into words without losing text",
+  async ({ chunks, expected }) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    vi.stubEnv("OPENCODE_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => Promise.resolve(providerStream(chunks)))
+    );
+    const transport = new MastraChatTransport({
+      api: "http://localhost:3002/api/mastra/agents/agent/stream",
+      fetch: async (input, init) => await POST(new Request(input, init)),
+    });
+    const startedAt = Date.now();
+    const stream = await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: crypto.randomUUID(),
+      messageId: undefined,
+      messages: [
+        {
+          id: "user-1",
+          parts: [{ text: "Hello", type: "text" }],
+          role: "user",
+        },
+      ],
+      trigger: "submit-message",
+    });
+    const deltas: { text: string; time: number }[] = [];
+    const consumed = (async () => {
+      for await (const chunk of stream) {
+        if (chunk.type === "text-delta") {
+          deltas.push({ text: chunk.delta, time: Date.now() - startedAt });
+        }
+      }
+    })();
+
+    await vi.runAllTimersAsync();
+    await consumed;
+
+    expect(deltas).toEqual(
+      expected.map((text, index) => ({ text, time: index * 20 }))
+    );
+    expect(deltas.map(({ text }) => text).join("")).toBe(chunks.join(""));
+  }
+);
 
 it("forwards chat cancellation to the provider", async () => {
   vi.stubEnv("OPENCODE_API_KEY", "test-key");
