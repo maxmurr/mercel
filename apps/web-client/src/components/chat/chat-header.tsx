@@ -3,7 +3,6 @@
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +12,7 @@ interface ChatHeaderProps {
   title: string;
 }
 
-/** Shows the demo chat title and delegates conversation reset to the page. */
+/** Shows the chat title and delegates conversation reset to the page. */
 export function ChatHeader({ className, onNewChat, title }: ChatHeaderProps) {
   return (
     <header
@@ -34,7 +33,6 @@ export function ChatHeader({ className, onNewChat, title }: ChatHeaderProps) {
           <ArrowLeftIcon />
         </Button>
         <h1 className="truncate font-medium text-sm">{title}</h1>
-        <Badge variant="secondary">Demo</Badge>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <ThemeSwitcher />

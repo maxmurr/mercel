@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpIcon } from "lucide-react";
+import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import {
   type ChangeEvent,
   type CompositionEvent,
@@ -20,7 +20,9 @@ import { cn } from "@/lib/utils";
 interface ChatComposerProps {
   className?: string;
   describedBy?: string;
-  onSend: (content: string) => void;
+  isBusy: boolean;
+  onSend: (content: string) => Promise<void>;
+  onStop: () => Promise<void>;
   onValueChange: (value: string) => void;
   value: string;
 }
@@ -29,22 +31,24 @@ interface ChatComposerProps {
 export function ChatComposer({
   className,
   describedBy,
+  isBusy,
   onSend,
+  onStop,
   onValueChange,
   value,
 }: ChatComposerProps) {
   const isComposing = useRef(false);
 
   const handleSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const content = value.trim();
-      if (!content) {
+      if (!content || isBusy) {
         return;
       }
-      onSend(content);
+      await onSend(content);
     },
-    [onSend, value]
+    [isBusy, onSend, value]
   );
 
   const handleInputChange = useCallback(
@@ -102,16 +106,29 @@ export function ChatComposer({
           <span className="text-muted-foreground text-xs">
             Enter to send · Shift + Enter for a new line
           </span>
-          <InputGroupButton
-            aria-label="Send message"
-            className="size-11"
-            disabled={!value.trim()}
-            size="icon-sm"
-            type="submit"
-            variant="default"
-          >
-            <ArrowUpIcon />
-          </InputGroupButton>
+          {isBusy ? (
+            <InputGroupButton
+              aria-label="Stop generating"
+              className="size-11"
+              onClick={onStop}
+              size="icon-sm"
+              type="button"
+              variant="default"
+            >
+              <SquareIcon />
+            </InputGroupButton>
+          ) : (
+            <InputGroupButton
+              aria-label="Send message"
+              className="size-11"
+              disabled={!value.trim()}
+              size="icon-sm"
+              type="submit"
+              variant="default"
+            >
+              <ArrowUpIcon />
+            </InputGroupButton>
+          )}
         </InputGroupAddon>
       </InputGroup>
     </form>

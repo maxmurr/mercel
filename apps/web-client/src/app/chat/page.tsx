@@ -1,15 +1,14 @@
 "use client";
 
+import { useChat } from "@ai-sdk/react";
 import { MessageSquareIcon, MonitorIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChatComposer } from "@/components/chat/chat-composer";
-import {
-  ChatConversation,
-  type ChatMessage,
-} from "@/components/chat/chat-conversation";
+import { ChatConversation } from "@/components/chat/chat-conversation";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { ChatPreview } from "@/components/chat/chat-preview";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
@@ -18,60 +17,59 @@ import {
 } from "@/components/ui/resizable";
 import { Separator } from "@/components/ui/separator";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { MastraChatTransport } from "@/lib/mastra-chat-transport";
 
-const exampleMessages: ChatMessage[] = [
-  {
-    content: "Build me an agent skills website with a modern dark theme.",
-    id: "example-user-1",
-    role: "user",
-  },
-  {
-    content:
-      "Here's an example direction: a dark canvas, a short introduction, and a grid of skills. Each card explains what the skill does.",
-    id: "example-assistant-1",
-    role: "assistant",
-  },
-  {
-    content: "Add a hero section and cards for different capabilities.",
-    id: "example-user-2",
-    role: "user",
-  },
-  {
-    content:
-      "The example preview includes:\n\n- A hero introducing **skills for your agents**\n- Cards for web search, code review, and other tasks\n- A layout that adapts to smaller screens\n\nThis is a static demo, not a generated app. Try the composer below to explore the conversation UI.",
-    id: "example-assistant-2",
-    role: "assistant",
-  },
-];
+const chatTransport = new MastraChatTransport({
+  api: "/api/mastra/agents/agent/stream",
+  prepareSendMessagesRequest: ({ id, messages }) => ({
+    body: {
+      messages,
+      requestContext: { opencodeSessionId: id },
+    },
+  }),
+});
 
 // Keep script-enabled deployment previews on a separate origin from the web app.
 const previewUrl = "http://yoopy.localhost:3001/";
 
-/** Demonstrates the chat workspace without sending prompts to an unconfigured AI backend. */
+/** Chats with the registered Mastra agent; conversation history lasts until reset or navigation. */
 export default function ChatPage() {
+  const [chatId, setChatId] = useState(() => crypto.randomUUID());
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState(exampleMessages);
   const [mobilePanel, setMobilePanel] = useState("chat");
+  const { error, messages, regenerate, sendMessage, status, stop } = useChat({
+    id: chatId,
+    // Batch tokens to keep streamed code blocks below React's update-depth limit.
+    throttle: 50,
+    transport: chatTransport,
+  });
+  const isBusy = status === "submitted" || status === "streaming";
   const isMobileLayout = useIsMobile(1024);
 
-  function handleSendMessage(content: string) {
-    setMessages((history) => [
-      ...history,
-      { content, id: crypto.randomUUID(), role: "user" },
-      {
-        content:
-          "App generation isn't connected in this demo. Your message stays in this conversation, and the example preview hasn't changed. To deploy an existing GitHub repository, use [New Project](/).",
-        id: crypto.randomUUID(),
-        role: "assistant",
-      },
-    ]);
+  useEffect(
+    () => () => {
+      stop();
+    },
+    [stop]
+  );
+
+  async function handleSendMessage(content: string) {
+    if (isBusy) {
+      return;
+    }
     setInput("");
+    await sendMessage({ text: content });
   }
 
-  function handleNewChat() {
-    setMessages([]);
+  async function handleNewChat() {
+    await stop();
+    setChatId(crypto.randomUUID());
     setInput("");
     setMobilePanel("chat");
+  }
+
+  async function handleRetry() {
+    await regenerate();
   }
 
   function handlePanelToggle() {
@@ -80,11 +78,11 @@ export default function ChatPage() {
 
   return (
     <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground antialiased">
-      <ChatHeader onNewChat={handleNewChat} title="Agent skills website" />
+      <ChatHeader onNewChat={handleNewChat} title="Chat with Agent" />
       <Separator />
       <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
-        <p className="text-muted-foreground text-xs" id="chat-demo-notice">
-          UI demo. No AI connected. Messages reset when you leave this page.
+        <p className="text-muted-foreground text-xs" id="chat-notice">
+          Messages reset when you leave this page. Preview is a static example.
         </p>
         <Button
           aria-controls={
@@ -116,10 +114,30 @@ export default function ChatPage() {
           minSize="25%"
         >
           <ChatPanel aria-label="Chat" id="chat-panel">
-            <ChatConversation className="flex-1" messages={messages} />
+            <ChatConversation
+              className="flex-1"
+              messages={messages}
+              status={status}
+            />
+            {error !== undefined && (
+              <Alert className="mx-4 w-auto sm:mx-5" variant="destructive">
+                <AlertDescription>
+                  Unable to generate a reply. Your messages are still here.
+                </AlertDescription>
+                <Button
+                  className="min-h-11 justify-self-start"
+                  onClick={handleRetry}
+                  variant="outline"
+                >
+                  Retry
+                </Button>
+              </Alert>
+            )}
             <ChatComposer
-              describedBy="chat-demo-notice"
+              describedBy="chat-notice"
+              isBusy={isBusy}
               onSend={handleSendMessage}
+              onStop={stop}
               onValueChange={setInput}
               value={input}
             />

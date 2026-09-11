@@ -78,9 +78,20 @@ curl http://localhost:3002/api/mastra/agents/agent/generate \
 
 The response uses Mastra's native format, including `text`, usage, and execution
 metadata. Native streaming is available at
-`POST /api/mastra/agents/agent/stream`. The custom `/api/chat` route is removed;
-clients must send `messages` rather than `message`. The existing chat page is
-not wired to this API.
+`POST /api/mastra/agents/agent/stream`. The `/chat` page uses this existing
+endpoint through AI SDK's `useChat` and `src/lib/mastra-chat-transport.ts`.
+There is no separate `/api/chat` route.
+
+The transport converts native Mastra SSE text deltas into AI SDK UI messages.
+It sends the full conversation and a stable `requestContext.opencodeSessionId`
+UUID on each turn. New chat starts a new session. Stop, reset, and navigation
+abort the current request; failed replies can be retried without duplicating
+the user message. UI updates are throttled to 50 ms so streamed code blocks
+do not trigger a render for every token.
+
+This is text-only chat with the existing assistant. Tool calls, approvals,
+persistent history, and app generation are not connected. The preview remains
+a static example.
 
 The adapter handles routing, validation, errors, and request cancellation. Its
 default body limit is 4.5 MB. Configure it with `server.bodySizeLimit` on the

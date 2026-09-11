@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChatStatus, UIMessage } from "ai";
 import { MessageSquareIcon } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -19,42 +20,40 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
-
-/** Chat messages use stable IDs for scroll tracking and React keys. */
-export interface ChatMessage {
-  content: string;
-  id: string;
-  role: "user" | "assistant";
-}
+import { Spinner } from "@/components/ui/spinner";
 
 function ChatMessageItem({
-  className,
+  isStreaming,
   message,
 }: {
-  className?: string;
-  message: ChatMessage;
+  isStreaming: boolean;
+  message: UIMessage;
 }) {
   const isUser = message.role === "user";
+  const content = message.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n\n");
+
+  if (!content) {
+    return null;
+  }
 
   return (
-    <MessageScrollerItem
-      className={className}
-      messageId={message.id}
-      scrollAnchor={isUser}
-    >
+    <MessageScrollerItem messageId={message.id} scrollAnchor={isUser}>
       <Message align={isUser ? "end" : "start"}>
         <MessageContent>
           <Bubble variant={isUser ? "secondary" : "ghost"}>
             <BubbleContent className="wrap-anywhere">
               {isUser ? (
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                <p className="whitespace-pre-wrap">{content}</p>
               ) : (
                 <Streamdown
                   className="size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-                  mode="static"
+                  isAnimating={isStreaming}
+                  mode={isStreaming ? "streaming" : "static"}
                   skipHtml
                 >
-                  {message.content}
+                  {content}
                 </Streamdown>
               )}
             </BubbleContent>
@@ -69,10 +68,19 @@ function ChatMessageItem({
 export function ChatConversation({
   className,
   messages,
+  status,
 }: {
   className?: string;
-  messages: readonly ChatMessage[];
+  messages: readonly UIMessage[];
+  status: ChatStatus;
 }) {
+  const lastMessage = messages.at(-1);
+  const isWaitingForReply =
+    status === "submitted" ||
+    (status === "streaming" &&
+      (lastMessage?.role !== "assistant" ||
+        !lastMessage.parts.some((part) => part.type === "text" && part.text)));
+
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
       <MessageScroller className={className}>
@@ -93,17 +101,39 @@ export function ChatConversation({
                     </EmptyMedia>
                     <EmptyTitle>What can we build together?</EmptyTitle>
                     <EmptyDescription>
-                      Describe what you'd like to build. This demo shows the
-                      chat UI without generating an app.
+                      Ask a question or describe what you'd like to build.
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
               </MessageScrollerItem>
             ) : (
               messages.map((message) => (
-                <ChatMessageItem key={message.id} message={message} />
+                <ChatMessageItem
+                  isStreaming={
+                    status === "streaming" && message.id === messages.at(-1)?.id
+                  }
+                  key={message.id}
+                  message={message}
+                />
               ))
             )}
+            {isWaitingForReply ? (
+              <MessageScrollerItem messageId="chat-pending">
+                <p
+                  className="flex items-center gap-2 text-muted-foreground text-sm"
+                  role="status"
+                >
+                  <Spinner
+                    aria-hidden="true"
+                    className="shrink-0 motion-reduce:animate-none"
+                    role="presentation"
+                  />
+                  <span className="shimmer forced-colors:shimmer-none">
+                    Thinking…
+                  </span>
+                </p>
+              </MessageScrollerItem>
+            ) : null}
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton
