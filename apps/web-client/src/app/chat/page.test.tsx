@@ -773,4 +773,60 @@ it("rejects blank submits and preserves Shift+Enter and IME composition", async 
   );
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(getTextarea().value).toBe("");
+  await flushChatUpdates();
+});
+
+it("shows reasoning while the model thinks and folds it away once the answer arrives", async () => {
+  const stream = new TransformStream<unknown, unknown>();
+  const writer = stream.writable.getWriter();
+  fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
+  await renderPage();
+  await enterMessage("Build billing in-house or buy it?");
+  await clickButton("Send message");
+  await act(async () => {
+    await writer.write({ payload: { id: "r1" }, type: "reasoning-start" });
+    await writer.write({
+      payload: { id: "r1", text: "Three things decide it." },
+      type: "reasoning-delta",
+    });
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await flushChatUpdates();
+  const getTrigger = () =>
+    container.querySelector<HTMLButtonElement>(
+      '[role="log"] [data-slot="collapsible-trigger"]'
+    );
+  expect(getTrigger()?.textContent).toBe("Reasoning…");
+  expect(getTrigger()?.getAttribute("aria-expanded")).toBe("true");
+  expect(container.querySelector('[role="log"]')?.textContent).toContain(
+    "Three things decide it."
+  );
+  expect(container.querySelector('[role="status"]')).toBeNull();
+
+  await act(async () => {
+    await writer.write({ payload: { id: "r1" }, type: "reasoning-end" });
+    await writer.write({ payload: { id: "t1" }, type: "text-start" });
+    await writer.write({
+      payload: { id: "t1", text: "Buy it." },
+      type: "text-delta",
+    });
+    await writer.write({ payload: { id: "t1" }, type: "text-end" });
+    await writer.write({ type: "finish" });
+    await writer.close();
+  });
+  await flushChatUpdates();
+  expect(getTrigger()?.textContent).toBe("Reasoning");
+  expect(getTrigger()?.getAttribute("aria-expanded")).toBe("false");
+  expect(container.querySelector('[role="log"]')?.textContent).not.toContain(
+    "Three things decide it."
+  );
+  expect(container.querySelector('[role="log"]')?.textContent).toContain(
+    "Buy it."
+  );
+
+  await clickButton("Reasoning");
+  expect(getTrigger()?.getAttribute("aria-expanded")).toBe("true");
+  expect(container.querySelector('[role="log"]')?.textContent).toContain(
+    "Three things decide it."
+  );
 });

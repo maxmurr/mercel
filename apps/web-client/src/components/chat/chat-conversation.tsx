@@ -7,6 +7,7 @@ import {
 } from "@ai-sdk-tools/store";
 import { MessageSquareIcon } from "lucide-react";
 import { Streamdown } from "streamdown";
+import { Reasoning } from "@/components/ai-elements/reasoning";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import {
   Empty,
@@ -26,6 +27,9 @@ import {
 } from "@/components/ui/message-scroller";
 import { Spinner } from "@/components/ui/spinner";
 
+const streamdownClassName =
+  "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
+
 function ChatMessageItem({ messageId }: { messageId: string }) {
   const message = useMessageById(messageId);
   const isStreaming = useChatStore(
@@ -36,8 +40,12 @@ function ChatMessageItem({ messageId }: { messageId: string }) {
   const content = message.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n\n");
+  const reasoning = message.parts
+    .flatMap((part) => (part.type === "reasoning" ? [part.text] : []))
+    .join("\n\n");
+  const isReasoning = isStreaming && message.parts.at(-1)?.type === "reasoning";
 
-  if (!content) {
+  if (!(content || reasoning)) {
     return null;
   }
 
@@ -45,22 +53,36 @@ function ChatMessageItem({ messageId }: { messageId: string }) {
     <MessageScrollerItem messageId={message.id} scrollAnchor={isUser}>
       <Message align={isUser ? "end" : "start"}>
         <MessageContent>
-          <Bubble variant={isUser ? "secondary" : "ghost"}>
-            <BubbleContent className="wrap-anywhere">
-              {isUser ? (
-                <p className="whitespace-pre-wrap">{content}</p>
-              ) : (
-                <Streamdown
-                  className="size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-                  isAnimating={isStreaming}
-                  mode={isStreaming ? "streaming" : "static"}
-                  skipHtml
-                >
-                  {content}
-                </Streamdown>
-              )}
-            </BubbleContent>
-          </Bubble>
+          {reasoning && (
+            <Reasoning isStreaming={isReasoning}>
+              <Streamdown
+                className={streamdownClassName}
+                isAnimating={isReasoning}
+                mode={isReasoning ? "streaming" : "static"}
+                skipHtml
+              >
+                {reasoning}
+              </Streamdown>
+            </Reasoning>
+          )}
+          {content && (
+            <Bubble variant={isUser ? "secondary" : "ghost"}>
+              <BubbleContent className="wrap-anywhere">
+                {isUser ? (
+                  <p className="whitespace-pre-wrap">{content}</p>
+                ) : (
+                  <Streamdown
+                    className={streamdownClassName}
+                    isAnimating={isStreaming}
+                    mode={isStreaming ? "streaming" : "static"}
+                    skipHtml
+                  >
+                    {content}
+                  </Streamdown>
+                )}
+              </BubbleContent>
+            </Bubble>
+          )}
         </MessageContent>
       </Message>
     </MessageScrollerItem>
@@ -74,7 +96,10 @@ function ChatPendingReply() {
       state.status === "submitted" ||
       (state.status === "streaming" &&
         (lastMessage?.role !== "assistant" ||
-          !lastMessage.parts.some((part) => part.type === "text" && part.text)))
+          !lastMessage.parts.some(
+            (part) =>
+              (part.type === "text" || part.type === "reasoning") && part.text
+          )))
     );
   });
 
