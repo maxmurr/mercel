@@ -9,6 +9,7 @@ import {
 import { useState } from "react";
 import { type Layout, usePanelRef } from "react-resizable-panels";
 import { WebPreviewNavigationButton } from "@/components/ai-elements/web-preview";
+import { ChatCode } from "@/components/chat/chat-code";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { ChatPreview } from "@/components/chat/chat-preview";
@@ -132,9 +133,7 @@ export default function ChatPage() {
                 <ChatPreview title="Agent preview" />
               </TabsContent>
               <TabsContent className="min-h-0" value="code">
-                <p className="px-4 py-3 text-base/7 text-muted-foreground sm:text-sm/6">
-                  Nothing here yet.
-                </p>
+                <ChatCode />
               </TabsContent>
             </Tabs>
           </ChatPanel>

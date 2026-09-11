@@ -13,6 +13,10 @@ vi.mock("@/components/chat/chat-composer", { spy: true });
 vi.mock("@/components/chat/chat-conversation", { spy: true });
 vi.mock("@/components/chat/chat-header", { spy: true });
 vi.mock("@/components/chat/chat-preview", { spy: true });
+// The workspace browser fetches on mount; keep those requests out of chat assertions.
+vi.mock("@/components/chat/chat-code", () => ({
+  ChatCode: () => <p>Workspace files</p>,
+}));
 vi.mock("streamdown", async (importOriginal) => {
   const original = await importOriginal<typeof import("streamdown")>();
   return {
@@ -219,7 +223,7 @@ it("starts empty with a placeholder preview and accessible layout", async () => 
   );
   expect(
     container.querySelector('[role="tabpanel"]:not([hidden])')?.textContent
-  ).toBe("Nothing here yet.");
+  ).toBe("Workspace files");
   await clickButton("Preview");
   expect(
     container

@@ -38,6 +38,8 @@ export const agent = new Agent({
   workspace: new Workspace({
     bm25: true,
     filesystem: new LocalFilesystem({ basePath: workspaceDir }),
+    // Stable id so the web client can address this workspace's filesystem routes.
+    id: "sandbox",
     sandbox: new LocalSandbox({
       env: {
         HOME: process.env.HOME,
