@@ -23,6 +23,12 @@ vi.mock("@/components/chat/chat-header", { spy: true });
 vi.mock("@/components/chat/chat-preview", { spy: true });
 // Stored history loads from the server; these tests drive live chat, so open every thread empty.
 vi.mock("@/lib/chat-thread", () => ({
+  threadLabel: ({ title }: { title: string }) => title,
+  threadListKey: ["chat-threads"],
+  threadListOptions: () => ({
+    queryFn: () => Promise.resolve([]),
+    queryKey: ["chat-threads"],
+  }),
   threadOptions: (id: string) => ({
     queryFn: () => Promise.resolve({ messages: [], resourceId: id }),
     queryKey: ["chat-thread", id],
@@ -32,8 +38,12 @@ vi.mock("@/lib/chat-thread", () => ({
 vi.mock("@/components/chat/chat-code", () => ({
   ChatCode: () => <p>Workspace files</p>,
 }));
-// The account menu resolves a session on mount; keep auth requests out of chat assertions.
+// The account menu and thread sidebar resolve a session on mount; keep auth
+// requests out of chat assertions.
 vi.mock("@/components/user-menu", () => ({ UserMenu: () => null }));
+vi.mock("@/components/chat/thread-sidebar", () => ({
+  ThreadSidebar: () => null,
+}));
 vi.mock("streamdown", async (importOriginal) => {
   const original = await importOriginal<typeof import("streamdown")>();
   return {
@@ -158,11 +168,8 @@ async function renderPage() {
   await flushChatUpdates();
 }
 
-// "New chat" links to the launcher, whose next prompt opens a fresh thread; render again at that URL.
+// The launcher's next prompt opens a fresh thread; render again at that URL.
 async function startNewChat() {
-  expect(
-    container.querySelector('a[aria-label="New chat"]')?.getAttribute("href")
-  ).toBe("/chat");
   threadId = crypto.randomUUID();
   await renderPage();
 }
@@ -284,7 +291,7 @@ it("starts empty with a placeholder preview and accessible layout", async () => 
 
 it("frames a supplied URL in a sandboxed separate-origin iframe", async () => {
   await renderWithProviders(
-    <ChatPreview title="Example site" url="http://abc12.localhost:3001/" />
+<ChatPreview title="Example site" url="http://abc12.localhost:3001/" />
   );
   const preview = container.querySelector("iframe");
   expect(preview?.getAttribute("src")).toBe("http://abc12.localhost:3001/");

@@ -1,19 +1,26 @@
 "use client";
 
-import { ArrowLeftIcon, PlusIcon, UploadIcon } from "lucide-react";
-import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { UploadIcon } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
+import { threadLabel, threadListOptions } from "@/lib/chat-thread";
 import { cn } from "@/lib/utils";
 
 interface ChatHeaderProps {
   className?: string;
-  title: string;
+  threadId: string;
 }
 
-/** Shows the chat title; "New chat" returns to the launcher at /chat. */
-export function ChatHeader({ className, title }: ChatHeaderProps) {
+/** Names the open conversation and carries its workspace actions; the sidebar owns switching chats. */
+export function ChatHeader({ className, threadId }: ChatHeaderProps) {
+  // The sidebar shares this query, so the title costs no extra request.
+  const { data: threads } = useQuery(threadListOptions());
+  const thread = threads?.find((entry) => entry.id === threadId);
+
   return (
     <header
       className={cn(
@@ -22,30 +29,14 @@ export function ChatHeader({ className, title }: ChatHeaderProps) {
       )}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <Button
-          aria-label="Back to New Project"
-          className="size-11"
-          nativeButton={false}
-          render={<Link href="/" />}
-          size="icon"
-          variant="ghost"
-        >
-          <ArrowLeftIcon />
-        </Button>
-        <h1 className="truncate font-medium text-sm">{title}</h1>
+        <SidebarTrigger aria-label="Toggle chats" className="size-11" />
+        <Separator className="h-6" orientation="vertical" />
+        <h1 className="truncate font-medium text-sm">
+          {thread ? threadLabel(thread) : "New chat"}
+        </h1>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <ThemeSwitcher />
-        <Button
-          aria-label="New chat"
-          className="h-10 max-sm:w-10"
-          nativeButton={false}
-          render={<Link href="/chat" />}
-          variant="outline"
-        >
-          <PlusIcon data-icon="inline-start" />
-          <span className="max-sm:hidden">New chat</span>
-        </Button>
         <Button className="h-11" variant="default">
           <UploadIcon data-icon="inline-start" />
           Publish

@@ -38,7 +38,9 @@ export const agent = new Agent({
   inputProcessors: [designBriefProcessor],
   instructions,
   // Storage comes from the Mastra instance, so threads land in the app's Postgres.
-  memory: new Memory({ options: { lastMessages } }),
+  // Titles are generated after the turn, so the sidebar can name a thread without
+  // slowing the reply down.
+  memory: new Memory({ options: { generateTitle: true, lastMessages } }),
   model: ({ requestContext }) => {
     const sessionId = requestContext.get("opencodeSessionId") ?? randomUUID();
     requestContext.set("opencodeSessionId", sessionId);

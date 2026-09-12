@@ -7,7 +7,7 @@ import {
   useChatError,
   useChatStore,
 } from "@ai-sdk-tools/store";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import { ChatComposer } from "@/components/chat/chat-composer";
@@ -18,7 +18,11 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { type ChatThread, threadOptions } from "@/lib/chat-thread";
+import {
+  type ChatThread,
+  threadListKey,
+  threadOptions,
+} from "@/lib/chat-thread";
 import { createChatTransport } from "@/lib/mastra-chat-transport";
 import { takePendingPrompt } from "@/lib/pending-prompt";
 import {
@@ -37,6 +41,7 @@ function ChatConnection({
   id: string;
   thread: ChatThread;
 }) {
+  const queryClient = useQueryClient();
   const transport = useMemo(
     () => createChatTransport(thread.resourceId),
     [thread.resourceId]
@@ -45,6 +50,13 @@ function ChatConnection({
     id,
     messages: thread.messages,
     onData: handleSandboxData,
+    // A first turn creates the thread and a later one retitles it, so the
+    // sidebar needs to re-read the list once the reply lands.
+    onFinish: () => {
+      queryClient
+        .invalidateQueries({ queryKey: threadListKey })
+        .catch(() => undefined);
+    },
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     // Batch tokens to keep streamed code blocks below React's update-depth limit.
     throttle: 50,
