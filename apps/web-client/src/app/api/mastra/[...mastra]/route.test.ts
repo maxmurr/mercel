@@ -3,6 +3,7 @@
 import { readUIMessageStream, type UIMessage } from "ai";
 import { afterEach, expect, it, vi } from "vitest";
 import { MastraChatTransport } from "@/lib/mastra-chat-transport";
+import { designBrief } from "@/mastra/processors/design-brief";
 import { GET, POST } from "./route";
 
 afterEach(() => {
@@ -117,7 +118,7 @@ it("converts the native agent stream into AI SDK messages with full history and 
   }
   expect((await new Request(...secondCall).json()).messages).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ content: "Hello", role: "user" }),
+      expect.objectContaining({ content: `${designBrief}Hello`, role: "user" }),
       expect.objectContaining({ content: "Hello!", role: "assistant" }),
       expect.objectContaining({ content: "Follow up", role: "user" }),
     ])

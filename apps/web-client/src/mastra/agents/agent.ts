@@ -10,6 +10,7 @@ import {
 } from "@mastra/core/workspace";
 import { z } from "zod";
 import { recordProcessLog } from "../../lib/process-log";
+import { designBriefProcessor } from "../processors/design-brief";
 import { exa } from "../tools/exa";
 import { openPreviewTool } from "../tools/preview";
 import instructions from "./instructions.md";
@@ -30,6 +31,7 @@ export const agent = new Agent({
     maxSteps,
   },
   id: "agent",
+  inputProcessors: [designBriefProcessor],
   instructions,
   model: ({ requestContext }) => {
     const sessionId = requestContext.get("opencodeSessionId") ?? randomUUID();

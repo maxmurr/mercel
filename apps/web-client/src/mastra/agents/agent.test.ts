@@ -4,6 +4,7 @@ import { RequestContext } from "@mastra/core/request-context";
 import { afterEach, expect, it, vi } from "vitest";
 import { POST } from "../../app/api/mastra/[...mastra]/route";
 import { mastra } from "../index";
+import { designBrief } from "../processors/design-brief";
 
 const completionResponse = {
   choices: [
@@ -120,4 +121,32 @@ it("rejects invalid routing session IDs before calling the provider", async () =
     })
   ).rejects.toThrow();
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("prefixes only the first user message with the design brief", async () => {
+  vi.stubEnv("OPENCODE_API_KEY", "test-key");
+  const fetchMock = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(Response.json(completionResponse));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await mastra.getAgentById("agent").generate([
+    { content: "Build a landing page", role: "user" },
+    { content: "Done", role: "assistant" },
+    { content: "Make it blue", role: "user" },
+  ]);
+
+  const [call] = fetchMock.mock.calls;
+  if (!call) {
+    throw new Error("Missing provider request");
+  }
+  expect(await new Request(...call).json()).toMatchObject({
+    messages: expect.arrayContaining([
+      expect.objectContaining({
+        content: `${designBrief}Build a landing page`,
+        role: "user",
+      }),
+      expect.objectContaining({ content: "Make it blue", role: "user" }),
+    ]),
+  });
 });
