@@ -4,9 +4,7 @@ import { useChatStore } from "@ai-sdk-tools/store";
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import {
   type ChangeEvent,
-  type CompositionEvent,
   type FormEvent,
-  type KeyboardEvent,
   useCallback,
   useRef,
   useState,
@@ -17,6 +15,7 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
+import { useSubmitOnEnter } from "@/hooks/use-submit-on-enter";
 import { cn } from "@/lib/utils";
 
 interface ChatComposerProps {
@@ -32,8 +31,8 @@ export function ChatComposer({ className, describedBy }: ChatComposerProps) {
   const isBusy = useChatStore(
     (state) => state.status === "submitted" || state.status === "streaming"
   );
-  const isComposing = useRef(false);
   const isSending = useRef(false);
+  const submitOnEnter = useSubmitOnEnter();
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -63,31 +62,6 @@ export function ChatComposer({ className, describedBy }: ChatComposerProps) {
     []
   );
 
-  const handleInputComposition = useCallback(
-    (event: CompositionEvent<HTMLTextAreaElement>) => {
-      isComposing.current = event.type === "compositionstart";
-    },
-    []
-  );
-
-  const handleInputKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (
-        event.defaultPrevented ||
-        event.key !== "Enter" ||
-        event.shiftKey ||
-        isComposing.current ||
-        event.nativeEvent.isComposing ||
-        event.keyCode === 229
-      ) {
-        return;
-      }
-      event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
-    },
-    []
-  );
-
   return (
     <form
       aria-label="Message composer"
@@ -101,11 +75,9 @@ export function ChatComposer({ className, describedBy }: ChatComposerProps) {
           className="field-sizing-content scrollbar-subtle max-h-48 min-h-24"
           name="message"
           onChange={handleInputChange}
-          onCompositionEnd={handleInputComposition}
-          onCompositionStart={handleInputComposition}
-          onKeyDown={handleInputKeyDown}
           placeholder="Describe what you'd like to change…"
           value={value}
+          {...submitOnEnter}
         />
         <InputGroupAddon align="block-end" className="justify-between gap-2">
           <span className="text-muted-foreground text-xs">
