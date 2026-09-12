@@ -112,7 +112,7 @@ export function ToolPart({
           <ChevronDownIcon className="transition-transform group-aria-expanded/marker:rotate-180 motion-reduce:transition-none" />
         </MarkerIcon>
       </Marker>
-      <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none [&_[data-streamdown=code-block]]:my-0">
+      <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 **:data-[streamdown=code-block]:my-0 motion-reduce:transition-none">
         <CodeBlock code={code} language={language} lineNumbers={false}>
           <CodeBlockCopyButton />
         </CodeBlock>
