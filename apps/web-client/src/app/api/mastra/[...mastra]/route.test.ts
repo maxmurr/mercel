@@ -3,13 +3,98 @@
 import { readUIMessageStream, type UIMessage } from "ai";
 import { afterEach, expect, it, vi } from "vitest";
 import { MastraChatTransport } from "@/lib/mastra-chat-transport";
+import { mastra } from "@/mastra";
 import { designBrief } from "@/mastra/processors/design-brief";
 import { GET, POST } from "./route";
 
+const signedInUserId = "user-1";
+let sessionUserId: string | undefined = signedInUserId;
+
+vi.mock("@/lib/auth", () => ({
+  auth: {
+    api: {
+      getSession: () =>
+        Promise.resolve(sessionUserId ? { user: { id: sessionUserId } } : null),
+    },
+  },
+}));
+
+function streamRequest(body: Record<string, unknown>) {
+  return new Request("http://localhost:3002/api/mastra/agents/agent/stream", {
+    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+}
+
+const userMessages = [
+  { id: "user-1", parts: [{ text: "Hello", type: "text" }], role: "user" },
+];
+
 afterEach(() => {
+  sessionUserId = signedInUserId;
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+it("refuses the native API without a session", async () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchMock);
+  sessionUserId = undefined;
+
+  const streamed = await POST(streamRequest({ messages: userMessages }));
+  const listed = await GET(
+    new Request("http://localhost:3002/api/mastra/agents")
+  );
+
+  expect(streamed.status).toBe(401);
+  expect(listed.status).toBe(401);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("refuses a thread stored under another account", async () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchMock);
+  const memory = await mastra.getAgentById("agent").getMemory();
+  const otherAccountThread = await memory?.createThread({
+    resourceId: "user-2",
+    threadId: crypto.randomUUID(),
+  });
+  if (!otherAccountThread) {
+    throw new Error("Thread fixture missing");
+  }
+
+  const response = await POST(
+    streamRequest({
+      memory: { resource: "user-2", thread: otherAccountThread.id },
+      messages: userMessages,
+    })
+  );
+
+  expect(response.status).toBe(403);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("stores the conversation under the signed-in account, not the one requested", async () => {
+  vi.stubEnv("OPENCODE_API_KEY", "test-key");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(() => Promise.resolve(providerStream()))
+  );
+  const threadId = crypto.randomUUID();
+
+  const response = await POST(
+    streamRequest({
+      memory: { resource: "user-2", thread: threadId },
+      messages: userMessages,
+    })
+  );
+  await response.text();
+
+  const memory = await mastra.getAgentById("agent").getMemory();
+  const thread = await memory?.getThreadById({ threadId });
+  expect(thread?.resourceId).toBe(signedInUserId);
 });
 
 function providerStream(textChunks = ["Hello!"]) {

@@ -1,6 +1,6 @@
 import { toAISdkMessages } from "@mastra/ai-sdk/ui";
 import type { UIMessage } from "ai";
-import { auth } from "@/lib/auth";
+import { threadAccess } from "@/lib/thread-access";
 import { mastra } from "@/mastra";
 import { designBrief } from "@/mastra/processors/design-brief";
 
@@ -22,41 +22,25 @@ function withoutDesignBrief(messages: UIMessage[]): UIMessage[] {
   }));
 }
 
-/**
- * Owner of a thread's stored messages. Signed-in accounts own everything they
- * start; a thread opened while signed out owns itself, so it stays readable
- * without pooling anonymous conversations under one shared resource.
- */
-function resourceIdFor(threadId: string, userId: string | undefined): string {
-  return userId ?? threadId;
-}
-
 /** Replays a stored conversation so a reloaded chat page shows its history. */
 export async function GET(
   request: Request,
   { params }: RouteContext<"/api/chat/[threadId]/messages">
 ) {
   const { threadId } = await params;
-  const session = await auth.api.getSession({ headers: request.headers });
-  const resourceId = resourceIdFor(threadId, session?.user.id);
+  const access = await threadAccess(request, threadId);
+  if (access instanceof Response) {
+    return access;
+  }
 
   const memory = await mastra.getAgentById("agent").getMemory();
-  const thread = await memory?.getThreadById({ threadId });
-  if (!(memory && thread)) {
-    return Response.json({ messages: [], resourceId });
-  }
-  if (thread.resourceId !== resourceId) {
-    return Response.json(
-      { error: "Thread belongs to another account" },
-      {
-        status: 403,
-      }
-    );
+  if (!(memory && access.thread)) {
+    return Response.json({ messages: [], resourceId: access.userId });
   }
 
   const { messages } = await memory.recall({ perPage: false, threadId });
   return Response.json({
     messages: withoutDesignBrief(toAISdkMessages(messages, { version: "v7" })),
-    resourceId,
+    resourceId: access.userId,
   });
 }

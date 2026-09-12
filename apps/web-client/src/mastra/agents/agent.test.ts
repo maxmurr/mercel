@@ -6,6 +6,12 @@ import { POST } from "../../app/api/mastra/[...mastra]/route";
 import { mastra } from "../index";
 import { designBrief } from "../processors/design-brief";
 
+vi.mock("@/lib/auth", () => ({
+  auth: {
+    api: { getSession: () => Promise.resolve({ user: { id: "user-1" } }) },
+  },
+}));
+
 const completionResponse = {
   choices: [
     {

@@ -8,14 +8,14 @@ const threadsPerPage = 50;
 
 /**
  * Lists the signed-in account's conversations, newest first, for the thread
- * sidebar. A thread started while signed out is stored under its own ID rather
- * than an account, so a visitor without one has nothing to list.
+ * sidebar. Conversations belong to an account, so there is nothing to list
+ * without a session.
  */
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
   const resourceId = session?.user.id;
   if (!resourceId) {
-    return Response.json({ threads: [] });
+    return Response.json({ error: "Sign in required" }, { status: 401 });
   }
 
   const memory = await mastra.getAgentById("agent").getMemory();
