@@ -55,6 +55,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "jsdom": "^30.0.1",
     "mastra": "^1.28.0",
+    "raw-loader": "^4.0.2",
     "tailwindcss": "^4",
     "typescript": "^6.0.3",
     "vitest": "catalog:"
