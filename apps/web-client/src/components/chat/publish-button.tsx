@@ -6,10 +6,20 @@ import { type RefObject, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
-import { deploymentStatusOptions, publishWorkspace } from "@/lib/deployment";
+import {
+  deploymentStatusOptions,
+  getDeploymentPreviewUrl,
+  publishWorkspace,
+} from "@/lib/deployment";
+
+interface PublishButtonProps {
+  /** The thread's last published deployment; reopens its site after a reload. */
+  deploymentId?: string | undefined;
+  threadId: string;
+}
 
 /** Publishes the thread's sandbox and follows the deployment until the site is live or it fails. */
-export function PublishButton({ threadId }: { threadId: string }) {
+export function PublishButton({ deploymentId, threadId }: PublishButtonProps) {
   // Guards a second click before the mutation's pending state has rendered.
   const inFlight: RefObject<boolean> = useRef(false);
   const failureShownFor = useRef<string>(undefined);
@@ -27,7 +37,11 @@ export function PublishButton({ threadId }: { threadId: string }) {
     },
     retry: false,
   });
-  const deployment = publish.data;
+  const deployment =
+    publish.data ??
+    (deploymentId
+      ? { id: deploymentId, previewUrl: getDeploymentPreviewUrl(deploymentId) }
+      : undefined);
   const status = useQuery(deploymentStatusOptions(deployment?.id));
   const isLive = status.data === "completed";
   const hasFailed = status.data === "failed";
@@ -58,20 +72,18 @@ export function PublishButton({ threadId }: { threadId: string }) {
     await refetch();
   }, [refetch]);
 
+  const started = publish.data;
   useEffect(() => {
-    if (
-      !(deployment && hasFailed) ||
-      failureShownFor.current === deployment.id
-    ) {
+    if (!(started && hasFailed) || failureShownFor.current === started.id) {
       return;
     }
-    failureShownFor.current = deployment.id;
+    failureShownFor.current = started.id;
     toast.add({
       description: "The build did not complete. Publish again to retry.",
       title: "Publish failed",
       type: "error",
     });
-  }, [deployment, hasFailed]);
+  }, [started, hasFailed]);
 
   return (
     <>

@@ -33,11 +33,11 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-async function renderButton() {
+async function renderButton(deploymentId?: string) {
   await act(() =>
     root.render(
       <QueryClientProvider client={queryClient}>
-        <PublishButton threadId={threadId} />
+        <PublishButton deploymentId={deploymentId} threadId={threadId} />
         <Toaster />
       </QueryClientProvider>
     )
@@ -186,4 +186,16 @@ it("pauses after two status retries and checks the same deployment on demand", a
   );
   expect(statusCalls()).toHaveLength(5);
   expect(publishCalls()).toHaveLength(1);
+});
+
+it("reopens the thread's last published site without publishing again", async () => {
+  fetchMock.mockResolvedValue(Response.json({ status: "completed" }));
+  await renderButton("abc12");
+  await advanceTime();
+
+  expect(container.querySelector("a")?.href).toBe(
+    "http://abc12.localhost:3001/"
+  );
+  expect(publishCalls()).toHaveLength(0);
+  expect(document.body.textContent).not.toContain("Publish failed");
 });

@@ -1,6 +1,7 @@
 import { toAISdkMessages } from "@mastra/ai-sdk/ui";
 import type { UIMessage } from "ai";
 import { threadAccess } from "@/lib/thread-access";
+import { resumableRunId } from "@/lib/thread-run";
 import { mastra } from "@/mastra";
 import { designBrief } from "@/mastra/processors/design-brief";
 
@@ -34,10 +35,8 @@ export async function GET(
   }
 
   const agent = mastra.getAgentById("agent");
-  // Saves the chat a reconnect request on the threads that have nothing running.
-  const isStreaming = Boolean(
-    agent.getActiveThreadRunId({ resourceId: access.userId, threadId })
-  );
+  // Saves the chat a reconnect request on the threads that have nothing to replay.
+  const isStreaming = Boolean(await resumableRunId(access.userId, threadId));
   const memory = await agent.getMemory();
   if (!(memory && access.thread)) {
     return Response.json({

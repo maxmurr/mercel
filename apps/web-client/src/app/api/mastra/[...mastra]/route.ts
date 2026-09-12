@@ -1,4 +1,6 @@
+import { MessageList } from "@mastra/core/agent";
 import { createNextRouteHandler } from "@mastra/next";
+import type { UIMessage } from "ai";
 import { threadAccess } from "@/lib/thread-access";
 import { mastra } from "@/mastra";
 
@@ -8,6 +10,7 @@ const handlers = createNextRouteHandler({ mastra, prefix: "/api/mastra" });
 
 interface AgentRequestBody {
   memory?: { resource?: string; thread?: string };
+  messages?: UIMessage[];
 }
 
 /** The memory options the browser sent, when it sent any. */
@@ -17,6 +20,39 @@ function memoryOf(body: unknown): AgentRequestBody["memory"] {
   }
   const { memory } = body as AgentRequestBody;
   return typeof memory === "object" && memory !== null ? memory : undefined;
+}
+
+/**
+ * Stores the messages a turn opens with before its run starts.
+ *
+ * Mastra writes a turn's messages only once the reply lands, so a chat that
+ * reloaded mid-reply would show an empty conversation while a reply to an
+ * invisible prompt streamed into it. The run reuses these IDs, so its own save
+ * overwrites these rows instead of adding a second copy.
+ */
+async function saveTurnInput({
+  messages,
+  resourceId,
+  threadExists,
+  threadId,
+}: {
+  messages: UIMessage[];
+  resourceId: string;
+  threadExists: boolean;
+  threadId: string;
+}) {
+  const memory = await mastra.getAgentById("agent").getMemory();
+  if (!memory) {
+    return;
+  }
+  if (!threadExists) {
+    await memory.createThread({ resourceId, threadId });
+  }
+  await memory.saveMessages({
+    messages: new MessageList({ resourceId, threadId })
+      .add(messages, "user")
+      .get.input.db(),
+  });
 }
 
 /**
@@ -44,6 +80,16 @@ async function authorize(request: Request): Promise<Request | Response> {
   const access = await threadAccess(request, memory?.thread);
   if (access instanceof Response) {
     return access;
+  }
+
+  const { messages } = body as AgentRequestBody;
+  if (memory?.thread && messages?.length) {
+    await saveTurnInput({
+      messages,
+      resourceId: access.userId,
+      threadExists: Boolean(access.thread),
+      threadId: memory.thread,
+    });
   }
 
   const headers = new Headers(request.headers);

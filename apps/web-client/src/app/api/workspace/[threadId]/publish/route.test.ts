@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { mastra } from "@/mastra";
 import { POST } from "./route";
 
 const signedInUserId = "user-1";
@@ -116,4 +117,19 @@ it("passes the upload server's refusal back to the browser", async () => {
   expect(await response.json()).toEqual({
     error: "Deployment could not be started (HTTP 500).",
   });
+});
+
+it("remembers the deployment on the thread so the site reopens later", async () => {
+  writeThreadFiles({ "index.html": "<!doctype html>" });
+  fetchMock.mockResolvedValue(Response.json({ id: "abc12" }));
+  const memory = await mastra.getAgentById("agent").getMemory();
+  if (!memory) {
+    throw new Error("Agent has no memory.");
+  }
+  await memory.createThread({ resourceId: signedInUserId, threadId });
+
+  expect((await publish()).status).toBe(200);
+
+  const thread = await memory.getThreadById({ threadId });
+  expect(thread?.metadata?.deploymentId).toBe("abc12");
 });

@@ -50,6 +50,8 @@ export function threadOptions(threadId: string) {
 
 /** Row in the thread sidebar; the conversation itself loads from `threadOptions`. */
 export interface ChatThreadSummary {
+  /** Last deployment published from this thread, so its site stays reachable after a reload. */
+  deploymentId?: string;
   id: string;
   /** Empty until Mastra's title generation lands, so the sidebar needs a fallback. */
   title: string;

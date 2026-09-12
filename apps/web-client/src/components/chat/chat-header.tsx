@@ -52,7 +52,10 @@ export function ChatHeader({ className, threadId }: ChatHeaderProps) {
           <DownloadIcon data-icon="inline-start" />
           Export
         </Button>
-        <PublishButton threadId={threadId} />
+        <PublishButton
+          deploymentId={thread?.deploymentId}
+          threadId={threadId}
+        />
         <UserMenu />
       </div>
     </header>

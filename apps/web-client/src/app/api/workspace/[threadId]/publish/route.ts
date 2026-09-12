@@ -1,5 +1,6 @@
 import { startDeployment } from "@/lib/deployment";
 import { threadAccess } from "@/lib/thread-access";
+import { mastra } from "@/mastra";
 import { archiveThreadWorkspace } from "@/mastra/thread-workspace";
 
 export const runtime = "nodejs";
@@ -10,7 +11,8 @@ export const runtime = "nodejs";
  *
  * The browser gets back only the deployment ID and polls the upload server for
  * status itself. The files belong to the conversation, so the account that owns
- * the thread is the one that publishes them.
+ * the thread is the one that publishes them. The ID is kept on the thread so a
+ * reloaded page can still reach the site this thread published.
  */
 export async function POST(
   request: Request,
@@ -30,7 +32,15 @@ export async function POST(
         { status: 404 }
       );
     }
-    return Response.json(await startDeployment(archive));
+    const deployment = await startDeployment(archive);
+    if (access.thread) {
+      const memory = await mastra.getAgentById("agent").getMemory();
+      await memory?.updateThread({
+        id: threadId,
+        metadata: { deploymentId: deployment.id },
+      });
+    }
+    return Response.json(deployment);
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Publish failed" },

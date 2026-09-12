@@ -30,10 +30,15 @@ export async function GET(request: Request) {
   });
 
   return Response.json({
-    threads: threads.map((thread) => ({
-      id: thread.id,
-      title: thread.title ?? "",
-      updatedAt: thread.updatedAt,
-    })),
+    threads: threads.map((thread) => {
+      const deploymentId = thread.metadata?.deploymentId;
+      return {
+        deploymentId:
+          typeof deploymentId === "string" ? deploymentId : undefined,
+        id: thread.id,
+        title: thread.title ?? "",
+        updatedAt: thread.updatedAt,
+      };
+    }),
   });
 }
