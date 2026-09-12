@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./auth-schema": "./src/auth-schema.ts",
     "./database": "./src/database.ts",
     "./deployments": "./src/deployments.ts",
     "./schema": "./src/schema.ts",

@@ -10,5 +10,5 @@ export default defineConfig({
   dbCredentials: { url: databaseUrl },
   dialect: "postgresql",
   out: "./drizzle",
-  schema: "./src/schema.ts",
+  schema: ["./src/schema.ts", "./src/auth-schema.ts"],
 });
