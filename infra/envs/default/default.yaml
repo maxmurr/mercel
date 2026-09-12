@@ -12,4 +12,11 @@ spec:
     directory:
       recurse: true
     path: infra/envs/default
+    targetRevision: main
     repoURL: https://github.com/maxmurr/mercel
+  syncPolicy: 
+    automated:
+      prune: true
+      selfHeal: true 
+    syncOptions:
+      - CreateNamespace=true
