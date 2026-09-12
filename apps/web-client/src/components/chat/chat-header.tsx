@@ -4,6 +4,7 @@ import { ArrowLeftIcon, PlusIcon, UploadIcon } from "lucide-react";
 import Link from "next/link";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Button } from "@/components/ui/button";
+import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 
 interface ChatHeaderProps {
@@ -36,14 +37,20 @@ export function ChatHeader({ className, onNewChat, title }: ChatHeaderProps) {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <ThemeSwitcher />
-        <Button className="h-10" onClick={onNewChat} variant="outline">
+        <Button
+          aria-label="New chat"
+          className="h-10 max-sm:w-10"
+          onClick={onNewChat}
+          variant="outline"
+        >
           <PlusIcon data-icon="inline-start" />
-          New chat
+          <span className="max-sm:hidden">New chat</span>
         </Button>
         <Button className="h-11" variant="default">
           <UploadIcon data-icon="inline-start" />
           Publish
         </Button>
+        <UserMenu />
       </div>
     </header>
   );

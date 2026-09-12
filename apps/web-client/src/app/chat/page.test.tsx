@@ -19,6 +19,8 @@ vi.mock("@/components/chat/chat-preview", { spy: true });
 vi.mock("@/components/chat/chat-code", () => ({
   ChatCode: () => <p>Workspace files</p>,
 }));
+// The account menu resolves a session on mount; keep auth requests out of chat assertions.
+vi.mock("@/components/user-menu", () => ({ UserMenu: () => null }));
 vi.mock("streamdown", async (importOriginal) => {
   const original = await importOriginal<typeof import("streamdown")>();
   return {
