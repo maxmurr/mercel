@@ -9,8 +9,18 @@ import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatPreview } from "@/components/chat/chat-preview";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSandboxStore } from "@/lib/sandbox-store";
-import ChatPage from "./page";
+import ChatThreadPage from "./page";
 
+const initialThreadId = "11111111-1111-4111-8111-111111111111";
+let threadId = initialThreadId;
+const push = vi.fn((href: string) => {
+  threadId = href.slice("/chat/".length);
+});
+
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ threadId }),
+  useRouter: () => ({ push }),
+}));
 vi.mock("@/components/chat/chat-composer", { spy: true });
 vi.mock("@/components/chat/chat-conversation", { spy: true });
 vi.mock("@/components/chat/chat-header", { spy: true });
@@ -34,7 +44,7 @@ vi.mock("streamdown", async (importOriginal) => {
 let container: HTMLDivElement;
 let root: Root;
 const fetchMock = vi.fn<typeof fetch>();
-const sessionIdPattern = /^[0-9a-f-]{36}$/;
+const newChatHrefPattern = /^\/chat\/[0-9a-f-]{36}$/;
 
 function mastraResponse(stream: ReadableStream<unknown>) {
   return new Response(
@@ -103,6 +113,7 @@ beforeEach(() => {
     configurable: true,
     value: vi.fn(),
   });
+  threadId = initialThreadId;
   fetchMock.mockReset();
   fetchMock.mockImplementation(() => Promise.resolve(chatResponse()));
   useSandboxStore.setState({ lastLogSeq: 0, logs: [], preview: undefined });
@@ -141,8 +152,17 @@ async function renderWithProviders(ui: ReactNode) {
 }
 
 async function renderPage() {
-  await renderWithProviders(<ChatPage />);
+  await renderWithProviders(<ChatThreadPage key={threadId} />);
   await flushChatUpdates();
+}
+
+// Next remounts the segment for the pushed thread ID, so render again at the new URL.
+async function startNewChat() {
+  await clickButton("New chat");
+  expect(push).toHaveBeenLastCalledWith(
+    expect.stringMatching(newChatHrefPattern)
+  );
+  await renderPage();
 }
 
 function getTextarea() {
@@ -290,7 +310,7 @@ it("frames a supplied URL in a sandboxed separate-origin iframe", async () => {
 });
 
 it("preserves drafts until the store has connected chat actions", async () => {
-  await renderWithProviders(<ChatPage />);
+  await renderWithProviders(<ChatThreadPage />);
   await enterMessage("Early draft");
   expect(
     container.querySelector<HTMLButtonElement>('button[type="submit"]')
@@ -374,9 +394,7 @@ it("sends UI messages, renders markdown, and reuses history and routing sessions
         role: "user",
       },
     ],
-    requestContext: {
-      opencodeSessionId: expect.stringMatching(sessionIdPattern),
-    },
+    requestContext: { opencodeSessionId: initialThreadId },
   });
   expect(getTextarea().value).toBe("");
   expect(container.querySelectorAll('[data-slot="message"]')).toHaveLength(2);
@@ -404,7 +422,7 @@ it("sends UI messages, renders markdown, and reuses history and routing sessions
   expect(secondBody.requestContext).toEqual(firstBody.requestContext);
 
   await clickButton("Preview");
-  await clickButton("New chat");
+  await startNewChat();
   expect(container.querySelectorAll('[data-slot="message"]')).toHaveLength(0);
   expect(
     container
@@ -415,9 +433,8 @@ it("sends UI messages, renders markdown, and reuses history and routing sessions
   await clickButton("Send message");
   const newBody = await getChatRequest(2).json();
   expect(newBody.messages).toHaveLength(1);
-  expect(newBody.requestContext.opencodeSessionId).not.toBe(
-    firstBody.requestContext.opencodeSessionId
-  );
+  expect(threadId).not.toBe(initialThreadId);
+  expect(newBody.requestContext).toEqual({ opencodeSessionId: threadId });
 });
 
 it("streams tool calls in order through running, done, failed, and refused states", async () => {
@@ -736,7 +753,7 @@ it("isolates draft edits and streamed deltas from layout and completed messages"
   await clickButton("Stop generating");
 });
 
-it("aborts on navigation and starts with an empty store when mounted again", async () => {
+it("aborts on navigation and reopens the same thread with an empty store", async () => {
   const { promise, resolve } = Promise.withResolvers<Response>();
   fetchMock.mockReturnValueOnce(promise);
   await renderPage();
@@ -754,9 +771,7 @@ it("aborts on navigation and starts with an empty store when mounted again", asy
   await clickButton("Send message");
   const oldBody = await getChatRequest(0).json();
   const newBody = await getChatRequest(1).json();
-  expect(newBody.requestContext.opencodeSessionId).not.toBe(
-    oldBody.requestContext.opencodeSessionId
-  );
+  expect(newBody.requestContext).toEqual(oldBody.requestContext);
 });
 
 it("aborts a pending reply on reset and ignores its late response", async () => {
@@ -765,7 +780,7 @@ it("aborts a pending reply on reset and ignores its late response", async () => 
   await renderPage();
   await enterMessage("Old conversation");
   await clickButton("Send message");
-  await clickButton("New chat");
+  await startNewChat();
   expect(getChatRequest(0).signal.aborted).toBe(true);
   await enterMessage("Fresh conversation");
   await clickButton("Send message");
@@ -849,7 +864,7 @@ it("preserves drafts, history, and the preview across panel toggles", async () =
   await renderPage();
   await enterMessage("Hello");
   await clickButton("Send message");
-  const previewUrlInput = container.querySelector(
+  const previewUrlInput = container.querySelector<HTMLInputElement>(
     'input[aria-label="Preview URL"]'
   );
   const messages = container.querySelector('[role="log"]')?.textContent;
@@ -862,11 +877,12 @@ it("preserves drafts, history, and the preview across panel toggles", async () =
   await clickButton("Chat");
   expect(getTextarea().value).toBe("Unsent draft");
   expect(container.querySelector('[role="log"]')?.textContent).toBe(messages);
-  await clickButton("New chat");
+  await startNewChat();
   expect(getTextarea().value).toBe("");
-  expect(container.querySelector('input[aria-label="Preview URL"]')).toBe(
-    previewUrlInput
-  );
+  expect(
+    container.querySelector<HTMLInputElement>('input[aria-label="Preview URL"]')
+      ?.value
+  ).toBe(previewUrlInput?.value);
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
