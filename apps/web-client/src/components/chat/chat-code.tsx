@@ -47,7 +47,6 @@ const workspaceFilesApi = "/api/mastra/workspaces/sandbox/fs";
 const rootPath = ".";
 const fileTreeId = "workspace-file-tree";
 const hiddenEntries = new Set(["node_modules", ".git"]);
-// ponytail: highlight only up to this size; tokenizing a bundled 300 KB file stalls the tab for seconds.
 const highlightLimit = 100_000;
 
 type Language = HighlightOptions["language"];
@@ -421,7 +420,6 @@ interface CodeViewerProps {
 function CodeViewer({ code, language }: CodeViewerProps) {
   const source = code.endsWith("\n") ? code.slice(0, -1) : code;
   const tokenLines = useHighlightedLines(source, language);
-  // ponytail: every line is in the DOM; virtualize if multi-thousand-line files show up.
   const lines: TokenLines =
     tokenLines ??
     source.split("\n").map((line) => [{ content: line, offset: 0 }]);
