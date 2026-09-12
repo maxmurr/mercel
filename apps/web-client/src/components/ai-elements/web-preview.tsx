@@ -29,7 +29,6 @@ export function WebPreview({ className, ...props }: ComponentProps<"div">) {
   );
 }
 
-/** Groups the preview address and navigation controls. */
 export function WebPreviewNavigation({
   className,
   ...props

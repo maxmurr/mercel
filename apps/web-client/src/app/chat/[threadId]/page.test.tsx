@@ -173,7 +173,6 @@ async function renderPage() {
   await flushChatUpdates();
 }
 
-// The launcher's next prompt opens a fresh thread; render again at that URL.
 async function startNewChat() {
   threadId = crypto.randomUUID();
   await renderPage();

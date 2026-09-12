@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 const MOBILE_BREAKPOINT = 768;
 
-/** Tracks whether the viewport is narrower than the supplied pixel breakpoint. */
 export function useIsMobile(breakpoint = MOBILE_BREAKPOINT) {
   const [isMobile, setIsMobile] = useState<boolean | undefined>(undefined);
 

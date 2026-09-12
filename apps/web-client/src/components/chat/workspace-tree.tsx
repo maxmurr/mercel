@@ -35,7 +35,6 @@ function StatusMessage({ className, ...props }: ComponentProps<"p">) {
   );
 }
 
-// Fixed widths keep server and client markup identical instead of reshuffling on every render.
 const treeSkeletonWidths = ["w-28", "w-20", "w-32", "w-24", "w-16"];
 
 interface TreeSkeletonProps {

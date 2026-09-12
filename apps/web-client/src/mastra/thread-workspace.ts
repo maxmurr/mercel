@@ -10,7 +10,6 @@ const sandboxRoot = ".sandbox";
 /** Starter project a new thread begins from, resolved from process.cwd(). */
 const templateDir = "templates/vite-react";
 
-// The launcher mints thread ids with crypto.randomUUID(), and they become directory names.
 const threadIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -137,7 +136,6 @@ export function stopIdleThreadSandboxes(now = Date.now()): void {
       continue;
     }
     sandboxes.delete(threadId);
-    // ponytail: a kill that fails leaves the dev server orphaned, as a restart does today; the sandbox is dropped either way.
     sandbox._destroy().catch(() => undefined);
   }
 }
@@ -162,7 +160,6 @@ export async function archiveThreadWorkspace(
   if (!existsSync(directory)) {
     return;
   }
-  // ponytail: buffered in memory; stream it to the upload server if projects outgrow archiveMaxBytes.
   const { stdout } = await execFileAsync(
     "tar",
     ["-cz", "--exclude=node_modules", "--exclude=dist", "-C", directory, "."],
@@ -183,7 +180,6 @@ export async function zipThreadWorkspace(
   if (!existsSync(directory)) {
     return;
   }
-  // ponytail: buffered in memory like the publish tarball; stream it if projects outgrow archiveMaxBytes.
   const { stdout } = await execFileAsync(
     "zip",
     ["-qXr", "-", ".", "-x", "node_modules/*", "dist/*"],

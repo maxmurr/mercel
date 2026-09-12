@@ -20,7 +20,6 @@ import {
   Tooltip,
 } from "recharts";
 
-// Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { dark: ".dark", light: "" } as const;
 
 const INITIAL_DIMENSION = { height: 200, width: 320 } as const;

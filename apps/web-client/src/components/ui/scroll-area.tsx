@@ -3,7 +3,6 @@
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { cn } from "cn";
 
-/** Applies viewport styles to the scroll container without masking its scrollbar. */
 function ScrollArea({
   className,
   children,

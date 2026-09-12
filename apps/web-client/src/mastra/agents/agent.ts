@@ -116,14 +116,12 @@ export const agent = new Agent({
     sandbox: ({ requestContext }) =>
       threadSandbox(requireThreadId(requestContext)),
     tools: {
-      // Require reading a file before editing it (safer)
       [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: {
         requireReadBeforeWrite: true,
       },
       [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: {
         requireReadBeforeWrite: true,
       },
-      // Ask for approval before deleting anything
       [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: {
         requireApproval: true,
       },
