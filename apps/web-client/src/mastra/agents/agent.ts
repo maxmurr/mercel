@@ -14,8 +14,8 @@ import { exa } from "../tools/exa";
 /** Shared root for file tools and shell commands, resolved from process.cwd(). */
 const workspaceDir = ".sandbox";
 
-/** Repo-root Agent Skills (`SKILL.md` dirs), resolved from process.cwd() like workspaceDir. */
-const skillsDir = "../../.agents/skills";
+/** Agent Skills (`SKILL.md` dirs), resolved from process.cwd() like workspaceDir. */
+const skillsDir = "src/mastra/skills";
 
 /** Reuse request context across turns to keep the OpenCode routing session stable. */
 export const agent = new Agent({
@@ -41,7 +41,6 @@ export const agent = new Agent({
     opencodeSessionId: z.uuid().optional(),
   }),
   skills: [skillsDir],
-  // ponytail: one tools/list round trip to Exa per run; memoize if latency shows.
   tools: async () => ({
     web_fetch: webFetchTool,
     ...(await exa.listTools()),
