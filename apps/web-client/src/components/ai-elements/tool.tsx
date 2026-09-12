@@ -5,12 +5,17 @@ import { getToolName } from "ai";
 import {
   CheckIcon,
   ChevronDownIcon,
+  ExternalLinkIcon,
+  FilePenIcon,
+  FilePlusIcon,
   HourglassIcon,
   ShieldXIcon,
+  TerminalIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { type ReactNode, useCallback, useState } from "react";
 import { CodeBlock, CodeBlockCopyButton } from "streamdown";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -60,6 +65,94 @@ function statusOf(part: ToolPartValue): Status {
   }
 }
 
+/** Read-only workspace calls: the agent makes many per turn and none of them change anything. */
+const hiddenTools = new Set([
+  "mastra_workspace_file_stat",
+  "mastra_workspace_get_process_output",
+  "mastra_workspace_grep",
+  "mastra_workspace_index",
+  "mastra_workspace_list_files",
+  "mastra_workspace_lsp_inspect",
+  "mastra_workspace_read_file",
+  "mastra_workspace_search",
+]);
+
+/** True for calls a reader gains nothing from; the conversation drops those parts. */
+export function isHiddenToolPart(part: ToolPartValue) {
+  return hiddenTools.has(getToolName(part));
+}
+
+// Streaming input arrives as partial JSON, so every field can still be missing.
+const writeInput = z
+  .object({ content: z.string(), path: z.string() })
+  .partial();
+const editInput = z
+  .object({ new_string: z.string(), old_string: z.string(), path: z.string() })
+  .partial();
+const commandInput = z.object({ command: z.string() }).partial();
+const previewOutput = z.object({ url: z.string() }).partial();
+
+const fileExtension = /\.(\w+)$/;
+
+interface ToolView {
+  /** Replaces the generic input dump when the call has something better to show. */
+  body?: { code: string; language: string };
+  icon: ReactNode;
+  title: string;
+}
+
+/** Renders an edit as the replaced lines above the replacing ones. */
+function diffOf(oldString = "", newString = "") {
+  const mark = (text: string, marker: string) =>
+    text === "" ? [] : text.split("\n").map((line) => `${marker}${line}`);
+  return [...mark(oldString, "-"), ...mark(newString, "+")].join("\n");
+}
+
+const toolViews: Record<
+  string,
+  (part: ToolPartValue, done: boolean) => ToolView
+> = {
+  mastra_workspace_edit_file: (part, done) => {
+    const edit = editInput.safeParse(part.input).data;
+    return {
+      body: {
+        code: diffOf(edit?.old_string, edit?.new_string),
+        language: "diff",
+      },
+      icon: <FilePenIcon />,
+      title: `${done ? "Edited" : "Editing"} ${edit?.path ?? "a file"}`,
+    };
+  },
+  mastra_workspace_execute_command: (part, done) => {
+    const command = commandInput.safeParse(part.input).data?.command;
+    return {
+      icon: <TerminalIcon />,
+      title: `${done ? "Ran" : "Running"} ${command ?? "a command"}`,
+    };
+  },
+  mastra_workspace_write_file: (part, done) => {
+    const write = writeInput.safeParse(part.input).data;
+    return {
+      body: {
+        code: write?.content ?? "",
+        language: fileExtension.exec(write?.path ?? "")?.[1] ?? "text",
+      },
+      icon: <FilePlusIcon />,
+      title: `${done ? "Wrote" : "Writing"} ${write?.path ?? "a file"}`,
+    };
+  },
+  open_preview: (part, done) => {
+    const url =
+      part.state === "output-available"
+        ? previewOutput.safeParse(part.output).data?.url
+        : undefined;
+    return {
+      icon: <ExternalLinkIcon />,
+      title: `${done ? "Opened" : "Opening"} the preview${url ? ` at ${url}` : ""}`,
+    };
+  },
+};
+
 /** Picks what to print: the result once it came back, the error if it failed, otherwise what went in. */
 function payloadOf(part: ToolPartValue) {
   if (part.state === "output-error") {
@@ -87,7 +180,11 @@ interface ToolPartProps {
   part: ToolPartValue;
 }
 
-/** Shows one tool call as a marker row; expanding prints its input or result as a copyable code block. */
+/**
+ * Shows one tool call as a marker row; expanding prints its input or result as a
+ * copyable code block. Tools with a view of their own say what they did instead
+ * of naming themselves, and show the file, diff, or command behind it.
+ */
 export function ToolPart({
   className,
   onApprovalResponse,
@@ -95,7 +192,8 @@ export function ToolPart({
 }: ToolPartProps) {
   const [isOpen, setIsOpen] = useState(false);
   const status = statusOf(part);
-  const { code, language } = payloadOf(part);
+  const view = toolViews[getToolName(part)]?.(part, status === "done");
+  const { code, language } = view?.body ?? payloadOf(part);
   const approvalId =
     part.state === "approval-requested" && onApprovalResponse
       ? part.approval.id
@@ -129,15 +227,17 @@ export function ToolPart({
         )}
         render={<CollapsibleTrigger />}
       >
-        <MarkerIcon>{statusStyles[status].icon}</MarkerIcon>
+        <MarkerIcon>
+          {status === "done" && view ? view.icon : statusStyles[status].icon}
+        </MarkerIcon>
         <MarkerContent
           className={cn(
             "flex-1 truncate",
             status === "running" && "shimmer forced-colors:shimmer-none"
           )}
-          translate="no"
+          translate={view ? undefined : "no"}
         >
-          {getToolName(part)}
+          {view?.title ?? getToolName(part)}
         </MarkerContent>
         <MarkerIcon>
           <ChevronDownIcon className="transition-transform group-aria-expanded/marker:rotate-180 motion-reduce:transition-none" />

@@ -14,7 +14,7 @@ import { MessageSquareIcon } from "lucide-react";
 import { createContext, useContext } from "react";
 import { Streamdown } from "streamdown";
 import { Reasoning } from "@/components/ai-elements/reasoning";
-import { ToolPart } from "@/components/ai-elements/tool";
+import { isHiddenToolPart, ToolPart } from "@/components/ai-elements/tool";
 import {
   isWebSearchPart,
   WebSearchPart,
@@ -49,6 +49,9 @@ function AssistantPart({
   const respondToApproval = useContext(ToolApprovalContext);
 
   if (isToolUIPart(part)) {
+    if (isHiddenToolPart(part)) {
+      return null;
+    }
     return isWebSearchPart(part) ? (
       <WebSearchPart part={part} />
     ) : (
@@ -87,7 +90,7 @@ function AssistantPart({
 function hasVisibleContent(part: UIMessage["parts"][number]) {
   return (
     ((part.type === "text" || part.type === "reasoning") && part.text !== "") ||
-    isToolUIPart(part)
+    (isToolUIPart(part) && !isHiddenToolPart(part))
   );
 }
 

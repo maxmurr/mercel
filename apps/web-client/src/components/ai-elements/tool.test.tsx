@@ -2,7 +2,7 @@ import type { DynamicToolUIPart } from "ai";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { ToolPart } from "@/components/ai-elements/tool";
+import { isHiddenToolPart, ToolPart } from "@/components/ai-elements/tool";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -195,4 +195,104 @@ it("renders a pending approval read-only without a handler", async () => {
   });
   expect(container.querySelector('[data-slot="tool-approval"]')).toBeNull();
   expect(trigger().getAttribute("aria-expanded")).toBe("false");
+});
+
+it.each([
+  [
+    {
+      input: { content: "export default 1;\n", path: "src/app/page.tsx" },
+      toolName: "mastra_workspace_write_file",
+    },
+    "Wrote src/app/page.tsx",
+    "lucide-file-plus",
+    "export default 1;",
+  ],
+  [
+    {
+      input: {
+        new_string: "next",
+        old_string: "prev",
+        path: "src/app/page.tsx",
+      },
+      toolName: "mastra_workspace_edit_file",
+    },
+    "Edited src/app/page.tsx",
+    "lucide-file-pen",
+    "-prev+next",
+  ],
+  [
+    {
+      input: { command: "bun run dev" },
+      toolName: "mastra_workspace_execute_command",
+    },
+    "Ran bun run dev",
+    "lucide-terminal",
+    "Started",
+  ],
+  [
+    { input: { pid: "42" }, toolName: "open_preview" },
+    "Opened the preview at http://localhost:3000",
+    "lucide-external-link",
+    '{  "message": "Preview opened",  "url": "http://localhost:3000"}',
+  ],
+])(
+  "says what %o did and shows what it wrote",
+  async (call, title, icon, body) => {
+    await render({
+      output:
+        call.toolName === "open_preview"
+          ? { message: "Preview opened", url: "http://localhost:3000" }
+          : "Started",
+      state: "output-available",
+      toolCallId: "call-1",
+      type: "dynamic-tool",
+      ...call,
+    });
+    expect(trigger().textContent).toBe(title);
+    expect(trigger().querySelector("svg")?.classList.contains(icon)).toBe(true);
+    await act(() => trigger().click());
+    expect(code()).toBe(body);
+  }
+);
+
+it("names tools without a view of their own and keeps the running tense", async () => {
+  await render({
+    input: { command: "bun run dev" },
+    state: "input-available",
+    toolCallId: "call-1",
+    toolName: "mastra_workspace_execute_command",
+    type: "dynamic-tool",
+  });
+  expect(trigger().textContent).toBe("Running bun run dev");
+  expect(
+    trigger().querySelector("svg")?.classList.contains("lucide-loader")
+  ).toBe(true);
+
+  await render({
+    input,
+    output: { status: 200 },
+    state: "output-available",
+    toolCallId: "call-1",
+    toolName: "web_fetch",
+    type: "dynamic-tool",
+  });
+  expect(trigger().textContent).toBe("web_fetch");
+});
+
+it.each([
+  ["mastra_workspace_read_file", true],
+  ["mastra_workspace_list_files", true],
+  ["mastra_workspace_grep", true],
+  ["mastra_workspace_write_file", false],
+  ["open_preview", false],
+])("hides %s: %s", (toolName, hidden) => {
+  expect(
+    isHiddenToolPart({
+      input,
+      state: "input-available",
+      toolCallId: "call-1",
+      toolName,
+      type: "dynamic-tool",
+    })
+  ).toBe(hidden);
 });
