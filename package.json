@@ -14,6 +14,7 @@
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:push": "turbo run db:push",
+    "db:reset": "turbo run db:reset",
     "db:studio": "turbo run db:studio",
     "dev": "turbo run dev",
     "dev:deploy": "turbo run dev --filter=deploy-worker",

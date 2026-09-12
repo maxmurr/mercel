@@ -15,6 +15,7 @@
     "db:generate": "bun --bun drizzle-kit generate",
     "db:migrate": "bun --bun drizzle-kit migrate",
     "db:push": "bun --bun drizzle-kit push",
+    "db:reset": "bun --bun -e 'await Bun.sql.unsafe(`drop schema if exists drizzle cascade; drop schema public cascade; create schema public;`)' && bun --bun drizzle-kit migrate",
     "db:studio": "bun --bun drizzle-kit studio",
     "fix": "bun --bun ultracite fix .",
     "test": "bun --bun vitest run --config ../../vitest.config.ts",

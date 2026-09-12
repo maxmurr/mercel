@@ -64,6 +64,11 @@
       "interactive": true,
       "passThroughEnv": ["DATABASE_URL"]
     },
+    "db:reset": {
+      "cache": false,
+      "dependsOn": ["^db:reset"],
+      "passThroughEnv": ["DATABASE_URL"]
+    },
     "db:studio": {
       "cache": false,
       "persistent": true,

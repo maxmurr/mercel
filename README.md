@@ -255,13 +255,16 @@ the schema:
 bun run db:generate  # Generate SQL migrations in packages/db/drizzle/
 bun run db:migrate   # Apply pending migrations
 bun run db:studio    # Browse the database locally
+bun run db:reset     # Drop every table, re-apply migrations, recreate Mastra tables
 ```
 
 Review generated SQL before applying it and commit `packages/db/drizzle/`.
 For local schema experiments, `bun run db:push` applies changes without migration
 files. Use migrations for shared databases. Turbo runs database commands inside
 `packages/db`, under Bun, loading that package's `.env`. Schema-changing commands
-are never cached. Drizzle Kit uses the `postgres` dev dependency; application
+are never cached. `db:reset` drops the schema, so it also re-runs Mastra storage
+init in `web-client`; Mastra creates its own tables at runtime rather than
+through migrations. Drizzle Kit uses the `postgres` dev dependency; application
 queries use Bun's native driver. No dotenv package is needed.
 
 ## Local services
