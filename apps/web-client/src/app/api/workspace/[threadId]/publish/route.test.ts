@@ -11,7 +11,7 @@ import { POST } from "./route";
 const signedInUserId = "user-1";
 let sessionUserId: string | undefined = signedInUserId;
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/features/user/user-auth", () => ({
   auth: {
     api: {
       getSession: () =>

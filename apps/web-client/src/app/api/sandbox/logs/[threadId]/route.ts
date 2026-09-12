@@ -1,5 +1,5 @@
-import { readProcessLogs } from "@/lib/process-log";
-import { threadAccess } from "@/lib/thread-access";
+import { threadAccess } from "@/features/chat/chat-thread-access";
+import { readProcessLogs } from "@/features/workspace/workspace-process-log";
 import { existingThreadSandbox } from "@/mastra/thread-workspace";
 
 export const runtime = "nodejs";

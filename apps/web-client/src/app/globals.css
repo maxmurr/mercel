@@ -265,3 +265,22 @@
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(.settings-sidebar-enter),
+  ::view-transition-old(.settings-sidebar-exit) {
+    animation: none;
+  }
+}
+
+@media (min-width: 2400px) and (max-resolution: 1.1dppx) {
+  html {
+    font-size: 112.5%;
+  }
+}
+
+@media (min-width: 3200px) and (max-resolution: 1.1dppx) {
+  html {
+    font-size: 137.5%;
+  }
+}

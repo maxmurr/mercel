@@ -1,7 +1,7 @@
 import { MessageList } from "@mastra/core/agent";
 import { createNextRouteHandler } from "@mastra/next";
 import type { UIMessage } from "ai";
-import { threadAccess } from "@/lib/thread-access";
+import { threadAccess } from "@/features/chat/chat-thread-access";
 import { mastra } from "@/mastra";
 
 export const runtime = "nodejs";

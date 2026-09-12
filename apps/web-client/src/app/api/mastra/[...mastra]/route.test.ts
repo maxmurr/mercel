@@ -2,7 +2,7 @@
 
 import { readUIMessageStream, type UIMessage } from "ai";
 import { afterEach, expect, it, vi } from "vitest";
-import { MastraChatTransport } from "@/lib/mastra-chat-transport";
+import { MastraChatTransport } from "@/features/chat/chat-transport";
 import { mastra } from "@/mastra";
 import { designBrief } from "@/mastra/processors/design-brief";
 import { GET, POST } from "./route";
@@ -10,7 +10,7 @@ import { GET, POST } from "./route";
 const signedInUserId = "user-1";
 let sessionUserId: string | undefined = signedInUserId;
 
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/features/user/user-auth", () => ({
   auth: {
     api: {
       getSession: () =>

@@ -1,5 +1,5 @@
-import { threadAccess } from "@/lib/thread-access";
-import { resumableRunId } from "@/lib/thread-run";
+import { threadAccess } from "@/features/chat/chat-thread-access";
+import { resumableRunId } from "@/features/chat/chat-thread-run";
 import { mastra } from "@/mastra";
 
 export const runtime = "nodejs";

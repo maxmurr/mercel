@@ -1,4 +1,4 @@
-import { threadAccess } from "@/lib/thread-access";
+import { threadAccess } from "@/features/chat/chat-thread-access";
 import { zipThreadWorkspace } from "@/mastra/thread-workspace";
 
 export const runtime = "nodejs";

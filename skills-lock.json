@@ -45,6 +45,24 @@
       "skillPath": "skills/mastra/SKILL.md",
       "computedHash": "6482dad39fb72d1fe9d02078c15c3ee708774fd026a8557b4c7dc37fb554977a"
     },
+    "next-cache-components-adoption": {
+      "source": "vercel/next.js",
+      "sourceType": "github",
+      "skillPath": "skills/next-cache-components-adoption/SKILL.md",
+      "computedHash": "00bb30ef1b6cdb3946213fa613d3b5a366c13ea243e91b814b61034a9154c0f4"
+    },
+    "next-cache-components-optimizer": {
+      "source": "vercel/next.js",
+      "sourceType": "github",
+      "skillPath": "skills/next-cache-components-optimizer/SKILL.md",
+      "computedHash": "60f603cd578249e5bfc6e192032b20bf7e74764554bdd319fdc543be0b563052"
+    },
+    "nextjs-app-architecture": {
+      "source": "aurorascharff/nextjs-app-architecture-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "3c21c151bd98ecd3cb5405f855ed8fdf6ef4b65656abee7c0b9362a4952f3ada"
+    },
     "opensrc": {
       "source": "vercel-labs/opensrc",
       "sourceType": "github",

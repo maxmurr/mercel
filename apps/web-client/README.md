@@ -16,6 +16,27 @@ Override with `PORT=4000 bun run dev:web`.
 Edit `apps/web-client/src/app/page.tsx` to change the home page. The `@/*` import alias
 points to `apps/web-client/src/*`.
 
+## App architecture
+
+Pages and layouts compose synchronous server-rendered shells. `/chat/[threadId]`
+resolves `params.then()` inside page-owned Suspense boundaries and passes a plain
+thread ID into feature components. Each server component owns its query and
+exports its loading skeleton. Navigation and header wrappers stay outside those
+boundaries; `SectionErrorBoundary` retries failed server reads.
+
+`src/features/chat/` owns conversations and their streaming UI.
+`src/features/workspace/` owns files, previews, process logs, and publishing.
+`src/features/user/` owns authentication and account controls. Shared primitives
+and providers stay in `src/components/`; cross-feature hooks stay in `src/hooks/`.
+
+Server-only `chat-queries.ts` serves both RSC reads and chat API handlers with the
+same ownership checks. History initializes the chat store directly. Header and
+sidebar reads seed TanStack Query through `HydrationBoundary`, using the shared
+identity in `chat-cache.ts`. These account-specific reads remain dynamic; Cache
+Components is not enabled. Workspace files and process output load on demand and
+poll while visible. URL search params own the selected workspace view and file.
+Untitled chat labels use UTC so server and browser markup agree across timezones.
+
 ## Mastra
 
 `src/mastra/index.ts` registers `agent`, a coding agent defined in
@@ -41,10 +62,9 @@ Drizzle schema.
 
 Callers send only the newest message plus `memory: { thread, resource }`;
 Mastra loads the rest from storage. `thread` is the thread ID in the chat URL.
-`resource` is the owning account, or the thread ID itself for a thread opened
-while signed out. The web client reads a thread back through
-`GET /api/chat/[threadId]/messages`, which resolves the resource from the
-session rather than trusting the caller.
+`resource` is the owning account, verified against the session. The thread's
+server component reads history before connecting the browser's chat store.
+`GET /api/chat/[threadId]/messages` uses the same query and ownership check.
 
 Add your OpenCode Go key to `apps/web-client/.env.local`. The agent always
 loads Exa web search and fetch tools from Exa's hosted MCP server, which works
@@ -98,7 +118,7 @@ The response uses Mastra's native format, including `text`, usage, and execution
 metadata. Native streaming is available at
 `POST /api/mastra/agents/agent/stream`. The `/chat/[threadId]` page uses this
 existing endpoint through `@ai-sdk-tools/store`'s `useChat` and
-`src/lib/mastra-chat-transport.ts`. There is no separate `/api/chat` route.
+`src/features/chat/chat-transport.ts`. There is no separate `/api/chat` route.
 `@ai-sdk/react` remains installed as the store's peer dependency.
 
 The transport converts native Mastra SSE text deltas into AI SDK UI messages.
@@ -108,12 +128,12 @@ plus a `requestContext` carrying the thread ID as both `opencodeSessionId` and
 Stop, reset, and navigation abort the current request; failed replies can be
 retried without duplicating the user message. The connection throttles token
 updates to 50 ms before the store batches them.
-`src/components/chat/chat-session.tsx` owns a store per conversation and isolates
+`src/features/chat/components/chat-session.tsx` owns a store per conversation and isolates
 the full `useChat` subscription. The message list
 subscribes to IDs, each row to its message, and the composer to actions and busy
 state. Draft edits stay in the composer; streamed deltas do not re-render the
-page layout, preview, or completed messages. New chat remounts only the session,
-clearing its store and draft without reloading the preview.
+page layout, preview, or completed messages. Switching threads remounts the
+workspace and chat session, clearing the draft and the previous thread's preview.
 
 `src/components/ai-elements/tool.tsx` renders each tool call as one row. Writes,
 edits, commands, and `open_preview` say what they did — the path, the command,
@@ -140,12 +160,12 @@ time a thread runs, without `node_modules`, so the agent still runs `npm install
 To refresh the starter, run `npx shadcn@latest add --all --overwrite -y` inside
 the template directory and commit the result.
 
-`src/lib/mastra-chat-transport.ts` forwards Mastra `data-*` chunks as transient
+`src/features/chat/chat-transport.ts` forwards Mastra `data-*` chunks as transient
 AI SDK data parts. `useChat` `onData` routes them into
-`src/lib/sandbox-store.ts`: `data-preview` sets the iframe URL on the Preview
+`src/features/workspace/hooks/use-sandbox-store.ts`: `data-preview` sets the iframe URL on the Preview
 tab, and `data-sandbox-stdout/stderr/exit` from foreground commands feed the
 Console drawer. Background processes only report to the server, so
-`src/lib/process-log.ts` keeps their last 1000 lines and serves them at
+`src/features/workspace/workspace-process-log.ts` keeps their last 1000 lines and serves them at
 `GET /api/sandbox/logs/<threadId>?after=<seq>`
 (`src/app/api/sandbox/logs/[threadId]/route.ts`), filtered to the processes that
 thread's sandbox owns; `SandboxConsole` polls it every two seconds while the
@@ -160,8 +180,7 @@ next turn starts a fresh sandbox there. Before that, the agent can stop them wit
 process that spawned them is alive; after a Next.js restart or HMR reload of the
 agent module they are orphaned, so kill
 stray `vite` processes yourself. `open_preview` reads the URL from the process
-it is given, so a new server on another port still previews correctly. Persistent history and approvals UI are
-not connected.
+it is given, so a new server on another port still previews correctly.
 
 The adapter handles routing, validation, errors, and request cancellation. Its
 default body limit is 4.5 MB. Configure it with `server.bodySizeLimit` on the
@@ -173,16 +192,16 @@ can run agents and spend your model quota.
 
 ## Authentication
 
-Better Auth handles GitHub sign-in. `src/lib/auth.ts` builds the server instance
+Better Auth handles GitHub sign-in. `src/features/user/user-auth.ts` builds the server instance
 on the Drizzle adapter, `src/app/api/auth/[...all]/route.ts` mounts it at
-`/api/auth`, and `src/lib/auth-client.ts` exposes the browser client. The
+`/api/auth`, and `src/features/user/user-client.ts` exposes the browser client. The
 `/sign-in` page calls `authClient.signIn.social` with the `github` provider and
 a `/chat` callback. Conversations live at `/chat/[threadId]`, keyed by the
 thread ID in the URL.
 
 The `user`, `session`, `account`, and `verification` tables live in
-`packages/db/src/auth-schema.ts`, generated by `bunx auth generate` from this
-app's config. Apply them with `bun run db:migrate` from the repository root.
+`packages/db/src/auth-schema.ts`, generated by
+`bunx auth generate --config ./src/features/user/user-auth.ts` from this app. Apply them with `bun run db:migrate` from the repository root.
 Next.js renders on Node.js, so this app opens its own PostgreSQL pool in
 `src/lib/database.ts` through `postgres`; `@repo/db/database` uses Bun's SQL
 driver, which the Node.js runtime cannot load.
@@ -202,19 +221,20 @@ GITHUB_CLIENT_SECRET=your-github-client-secret
 A GitHub App, as opposed to an OAuth app, also needs **Account permissions >
 Email addresses** set to read-only, or sign-in fails with `email_not_found`.
 
-`src/lib/auth.ts` throws on import while the GitHub variables are missing, so
+`src/features/user/user-auth.ts` throws on import while the GitHub variables are missing, so
 `/api/auth/*` answers 500 until they are set. Confirm the wiring with
 `curl http://localhost:3002/api/auth/ok`, which returns `{"ok":true}`.
 
 Stored OAuth tokens are encrypted with the auth secret. Better Auth rate-limits
 its endpoints in production and trusts only the `BETTER_AUTH_URL` origin; add
 `trustedOrigins` when the app is served from another host. Every API route is
-gated through `src/lib/thread-access.ts`: the Mastra API, the chat routes, the
+gated through `src/features/chat/chat-thread-access.ts`: the Mastra API, the chat routes, the
 workspace routes, and the sandbox logs all answer `401` without a session and
 `403` for a thread owned by another account. The Mastra API also replaces the
-`memory.resource` the browser sent with the signed-in account. Pages themselves
-are not gated; a signed-out visitor can open them, and every request they make
-is refused.
+`memory.resource` the browser sent with the signed-in account. The proxy redirects
+visitors without a session cookie. Server-rendered chat reads verify the session
+again and redirect expired sessions to `/sign-in`; a foreign thread returns a
+not-found page without rendering its conversation.
 
 ## Publish and preview
 
@@ -225,8 +245,8 @@ thread routes. The route archives `.sandbox/<threadId>` with `tar`, leaving out
 `node_modules` and `dist`, posts the gzipped tarball to the upload API's
 `POST /deploy` as the multipart `archive` field, and returns the deployment ID.
 The archive is held in memory and capped at 64 MiB compressed.
-`src/lib/deployment.ts` owns that request, the ID validation, the preview URL,
-and the status poller both sides share as `deploymentStatusOptions`.
+`src/features/workspace/workspace-deployment.ts` owns that request, the ID validation, the preview URL,
+while `workspace-query-options.ts` owns the browser's `deploymentStatusOptions`.
 
 The button shows a spinner and `Publishing…` while the archive uploads, then
 while the browser polls `/status?id=...` every two seconds. Only `completed`

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { GitHubSignInButton } from "@/components/sign-in/github-sign-in-button";
 import { mainContentId } from "@/components/skip-link";
+import { GitHubSignInButton } from "@/features/user/components/github-sign-in-button";
 
 export const metadata: Metadata = {
   description: "Sign in to Mercel with GitHub",

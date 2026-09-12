@@ -14,7 +14,16 @@ export default defineConfig({
     },
   ],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Next enforces this boundary at build time; server query tests run in Vitest.
+      "server-only": fileURLToPath(
+        new URL(
+          "./node_modules/next/dist/compiled/server-only/empty.js",
+          import.meta.url
+        )
+      ),
+    },
   },
   test: {
     environment: "jsdom",

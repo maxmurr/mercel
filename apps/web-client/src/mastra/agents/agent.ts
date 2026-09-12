@@ -6,7 +6,7 @@ import { webFetchTool } from "@mastra/core/tools";
 import { WORKSPACE_TOOLS, Workspace } from "@mastra/core/workspace";
 import { Memory } from "@mastra/memory";
 import { z } from "zod";
-import { recordProcessLog } from "../../lib/process-log";
+import { recordProcessLog } from "../../features/workspace/workspace-process-log";
 import { designBriefProcessor } from "../processors/design-brief";
 import { threadFilesystem, threadSandbox } from "../thread-workspace";
 import { exa } from "../tools/exa";
