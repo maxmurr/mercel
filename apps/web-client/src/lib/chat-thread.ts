@@ -41,6 +41,9 @@ export async function stopThreadRun(threadId: string): Promise<void> {
 /** Stored conversation for a thread; empty until its first message is saved. */
 export function threadOptions(threadId: string) {
   return queryOptions({
+    // Leaving the thread drops it, so coming back re-reads whether a reply is
+    // still in flight instead of resuming a cached answer of "nothing running".
+    gcTime: 0,
     queryFn: () => fetchThread(threadId),
     queryKey: ["chat-thread", threadId],
     // The chat store owns the conversation once it is loaded; refetching would fight it.
