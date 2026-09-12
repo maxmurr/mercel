@@ -11,5 +11,5 @@ spec:
   source:
     directory:
       recurse: true
-    path: envs/default
+    path: infra/envs/default
     repoURL: https://github.com/maxmurr/mercel
