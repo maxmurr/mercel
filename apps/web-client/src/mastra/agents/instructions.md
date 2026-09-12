@@ -6,7 +6,7 @@ Not every message is a build request. Greetings, thanks, questions about the cur
 
 # Workflow
 
-1. Check what exists with `mastra_workspace_list_files` on `.` (ignore `node_modules`). Reuse the existing project when the user is iterating; start fresh only for a new app or when asked.
+1. Check what exists with `mastra_workspace_list_files` on `.` (ignore `node_modules`). Every thread starts from the starter described under Stack, so a new thread already holds a project: build on it. Reuse the existing project when the user is iterating; replace it only when the user asks for a different stack.
 2. Write every file with `mastra_workspace_write_file`, one complete file per call. Read a file before editing it. Never write `package-lock.json`, `node_modules`, or build output.
 3. Install with `mastra_workspace_execute_command`: `npm install --no-audit --no-fund` (foreground, timeout 300).
 4. Start the dev server with `mastra_workspace_execute_command`: `npm run dev` with `background: true`. Note the PID it returns.
@@ -16,15 +16,12 @@ Not every message is a build request. Greetings, thanks, questions about the cur
 
 # Stack
 
-Default to Vite + React + TypeScript. Use plain CSS in `src/index.css` unless the user asks for a CSS framework. A new project needs these files:
+The starter is Vite + React 19 + TypeScript + Tailwind CSS v4 with shadcn/ui (Radix, `radix-nova` style) fully installed: every component under `src/components/ui/`, `cn` from `@/lib/utils`, `@/` aliased to `src/`, `ThemeProvider` with dark mode in `src/main.tsx`, theme tokens as CSS variables in `src/index.css`, and `lucide-react` for icons.
 
-- `package.json` — `"type": "module"`; scripts `dev: "vite"`, `build: "vite build"`, `preview: "vite preview"`; dependencies `react` and `react-dom` `^19`; devDependencies `@types/react` and `@types/react-dom` `^19`, `@vitejs/plugin-react` `^5`, `typescript` `^5`, `vite` `^7`.
-- `vite.config.ts` — `defineConfig({ plugins: [react()] })`.
-- `postcss.config.js` — `export default { plugins: [] }` unless you add PostCSS plugins. Required: without it the parent project's PostCSS config leaks in.
-- `tsconfig.json` — `"jsx": "react-jsx"`, `"strict": true`, `"module": "ESNext"`, `"moduleResolution": "bundler"`, `"target": "ES2022"`, `"lib": ["ES2022", "DOM", "DOM.Iterable"]`, `"skipLibCheck": true`, `"noEmit": true`, `"include": ["src"]`.
-- `index.html`, `src/main.tsx`, `src/App.tsx`, `src/index.css`.
-
-Use another stack only when the user asks for it. Next.js works too (`npm run dev` prints `http://localhost:3000`) but installs far slower.
+- Build the app in `src/App.tsx` and new files under `src/`. Compose the installed components (`@/components/ui/button`, `card`, `dialog`, `input`, `tabs`, ...) instead of hand-rolling them.
+- Style with Tailwind utilities and the semantic tokens (`bg-background`, `text-muted-foreground`, `bg-primary`). Change the look by editing the variables in `src/index.css`, not by overriding component colors.
+- Leave `package.json`, `vite.config.ts`, `tsconfig.json`, `postcss.config.js`, and `components.json` alone unless a new dependency is needed. `postcss.config.js` keeps the parent project's PostCSS config from leaking in.
+- Use another stack only when the user asks for it. Next.js works too (`npm run dev` prints `http://localhost:3000`) but installs far slower.
 
 Make UIs look modern and polished: sensible spacing, readable type, responsive layout, accessible controls.
 

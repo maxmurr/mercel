@@ -123,6 +123,13 @@ with `background: true`, then calls `open_preview` (`src/mastra/tools/preview.ts
 with the PID. That tool waits for the `http://localhost:PORT` line in the
 process output and emits a `data-preview` chunk.
 
+New threads are seeded from `templates/vite-react`: Vite + React + TypeScript +
+Tailwind CSS v4 with every shadcn/ui component (Radix base) already added.
+`src/mastra/thread-workspace.ts` copies it into `.sandbox/<threadId>` the first
+time a thread runs, without `node_modules`, so the agent still runs `npm install`.
+To refresh the starter, run `npx shadcn@latest add --all --overwrite -y` inside
+the template directory and commit the result.
+
 `src/lib/mastra-chat-transport.ts` forwards Mastra `data-*` chunks as transient
 AI SDK data parts. `useChat` `onData` routes them into
 `src/lib/sandbox-store.ts`: `data-preview` sets the iframe URL on the Preview

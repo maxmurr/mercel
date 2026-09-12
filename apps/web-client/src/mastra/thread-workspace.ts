@@ -1,7 +1,12 @@
+import { cpSync, existsSync } from "node:fs";
+import { basename } from "node:path";
 import { LocalFilesystem, LocalSandbox } from "@mastra/core/workspace";
 
 /** Root holding every thread's directory, resolved from process.cwd(). */
 const sandboxRoot = ".sandbox";
+
+/** Starter project a new thread begins from, resolved from process.cwd(). */
+const templateDir = "templates/vite-react";
 
 // The launcher mints thread ids with crypto.randomUUID(), and they become directory names.
 const threadIdPattern =
@@ -14,9 +19,6 @@ const globalStore = globalThis as typeof globalThis & {
 if (!globalStore.mercelThreadSandboxes) {
   globalStore.mercelThreadSandboxes = new Map();
 }
-// ponytail: nothing reaps these, so a thread's sandbox and its dev servers live until the server
-// restarts; add an idle TTL that destroys the sandbox and clears the workspace cache before this
-// serves more than one person.
 const sandboxes = globalStore.mercelThreadSandboxes;
 
 /**
@@ -49,6 +51,24 @@ export function threadFilesystem(
 }
 
 /**
+ * Copies the starter into a thread's directory the first time the thread runs.
+ *
+ * A directory that already exists is left alone: after a server restart the
+ * sandbox cache is empty but the thread's files are not, and older threads
+ * predate the starter.
+ */
+function seedThreadWorkspace(workingDirectory: string): void {
+  if (existsSync(workingDirectory)) {
+    return;
+  }
+  cpSync(templateDir, workingDirectory, {
+    // A developer may have installed inside the template; each thread installs its own.
+    filter: (source) => basename(source) !== "node_modules",
+    recursive: true,
+  });
+}
+
+/**
  * The thread's sandbox, created on first use and reused afterwards so the dev
  * servers it started stay reachable across turns.
  */
@@ -58,6 +78,7 @@ export function threadSandbox(threadId: string): LocalSandbox {
   if (cached) {
     return cached;
   }
+  seedThreadWorkspace(workingDirectory);
   // LocalSandbox starts itself on the first command, so nothing here has to wait for it.
   const sandbox = new LocalSandbox({
     env: {
