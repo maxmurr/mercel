@@ -22,7 +22,8 @@ Shared dependency versions live in the root `package.json` catalog. Packages use
 
 ## Run
 
-Install [Bun](https://bun.sh/docs/installation) 1.4.0 or later and Git, then:
+Install [Bun](https://bun.sh/docs/installation) 1.4.0 or later, Git, Docker, k3d,
+and kubectl, then:
 
 ```sh
 bun install
@@ -30,7 +31,6 @@ cp -n apps/upload-server/.env.example apps/upload-server/.env
 cp -n apps/deploy-worker/.env.example apps/deploy-worker/.env
 cp -n apps/request-handler-server/.env.example apps/request-handler-server/.env
 cp -n packages/db/.env.example packages/db/.env
-cp -n .env.compose.example .env.compose
 openssl rand -hex 24
 ```
 
@@ -40,15 +40,16 @@ Git hook installation.
 Set `WORKBENCH_PASS` in `apps/upload-server/.env` to the generated password.
 Keep the database, Redis, and S3 settings consistent between services that use
 them. Bun loads each app's `.env` from its package directory. Drizzle Kit loads
-`packages/db/.env`; Docker Compose uses `.env.compose`. When migrating from the
-single-package layout, move existing values into these files and archive the old
+`packages/db/.env`. When migrating from the single-package layout, move existing
+values into these files and archive the old
 root `.env` so Bun does not inject it into every app.
 
-Start local services, create the `mercel` bucket at `http://localhost:9001`, apply
-migrations, then run all apps:
+The examples default to k3d. Follow [infrastructure setup](infra/README.md) to
+bootstrap services, start port-forwards, and create the `mercel` bucket at
+`http://localhost:19001`. Keep port-forwards running, then apply migrations and
+run all apps:
 
 ```sh
-docker compose --env-file .env.compose up -d --wait
 bun run db:migrate
 bun run dev
 ```
@@ -237,11 +238,11 @@ until those gaps close.
 ## Database
 
 Drizzle uses Bun's native PostgreSQL driver. Set `DATABASE_URL` in
-`packages/db/.env` for database commands and in each consuming app's `.env`, then
-start PostgreSQL:
+`packages/db/.env` for database commands and in each consuming app's `.env`.
+With the default k3d setup, keep the PostgreSQL port-forward running:
 
 ```sh
-docker compose --env-file .env.compose up -d --wait postgres
+kubectl -n postgres port-forward svc/postgres 15432:5432
 ```
 
 Import `postgresDb` from `@repo/db/database` for queries. It shares a connection
@@ -273,29 +274,10 @@ queries use Bun's native driver. No dotenv package is needed.
 
 ## Local services
 
-Start PostgreSQL, Redis, and RustFS with Docker Compose:
-
-```sh
-docker compose --env-file .env.compose up -d --wait
-```
-
-- PostgreSQL: `localhost:5432`, database and user `mercel`
-- Redis: `redis://localhost:6379`
-- RustFS S3 endpoint: `http://localhost:9000`
-- RustFS console: `http://localhost:9001`
-- RustFS access key: `mercel-local`
-- RustFS secret key: `mercel-local-secret`
-
-These credentials are for local development only. Override `RUSTFS_ACCESS_KEY`
-and `RUSTFS_SECRET_KEY` in `.env.compose` if needed. Ports bind only to localhost.
-Create buckets through the RustFS console; use path-style addressing in S3 clients.
-
-```sh
-docker compose --env-file .env.compose down
-```
-
-Stopping services preserves PostgreSQL, Redis, and object data in named Docker volumes.
-Redis uses append-only persistence and disables key eviction for queue workloads.
+Argo CD manages PostgreSQL, Redis, and RustFS in k3d. Follow
+[infrastructure setup](infra/README.md) for credentials, persistent storage,
+port-forwards, and validation. The `.env.example` files match those endpoints.
+Docker is still required for k3d, deployment builds, and integration tests.
 
 ## Commit messages
 

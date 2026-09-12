@@ -31,7 +31,9 @@ must already be installed in `argocd`.
 
 Create namespaces and credentials **before pushing these manifests to `main`**.
 The existing root Application automatically syncs from GitHub, not your working
-tree. Never commit generated credentials or exported Secret YAML.
+tree. These public example credentials match the app `.env.example` files and
+are only for this local cluster. Never use them on a shared or public deployment,
+and never commit real credentials or exported Secret YAML.
 
 ```sh
 for namespace in postgres redis rustfs; do
@@ -39,18 +41,20 @@ for namespace in postgres redis rustfs; do
 done
 
 kubectl -n postgres create secret generic postgres-auth \
-  --from-literal=password="$(openssl rand -hex 24)"
+  --from-literal=password=mercel-local-secret
 kubectl -n redis create secret generic redis-auth \
-  --from-literal=password="$(openssl rand -hex 24)"
+  --from-literal=password=mercel-local-secret
 kubectl -n rustfs create secret generic rustfs-auth \
-  --from-literal=access-key="$(openssl rand -hex 12)" \
-  --from-literal=secret-key="$(openssl rand -hex 24)"
+  --from-literal=access-key=mercel-local \
+  --from-literal=secret-key=mercel-local-secret
 ```
 
 Run secret creation once. It refuses to overwrite existing secrets. Missing
-secrets intentionally block pod startup instead of falling back to default
-passwords. PostgreSQL reads its initial password only when initializing an empty
-volume; changing its Secret alone does not rotate the database password.
+secrets intentionally block pod startup. If you already generated credentials
+with the previous instructions, keep using those values in your `.env` files;
+updating examples does not change existing secrets. PostgreSQL reads its initial
+password only when initializing an empty volume; changing its Secret alone does
+not rotate the database password.
 
 Commit and push `infra/` to `main`. If the root Application is not installed yet:
 
@@ -70,8 +74,8 @@ done
 
 ## Connect host apps
 
-Run each port-forward in a separate terminal. Alternate host ports avoid
-conflicts with the existing Compose services, which remain untouched.
+Run each port-forward in a separate terminal. These host ports match the
+`.env.example` files and avoid common local database and S3 ports.
 
 ```sh
 kubectl -n postgres port-forward svc/postgres 15432:5432
@@ -79,36 +83,34 @@ kubectl -n redis port-forward svc/redis 16379:6379
 kubectl -n rustfs port-forward svc/rustfs 19000:9000 19001:9001
 ```
 
-Read credentials locally with `kubectl get secret`. For example:
-
-```sh
-kubectl -n postgres get secret postgres-auth -o jsonpath='{.data.password}' | base64 -d; echo
-```
-
-Use the same command with the namespace, Secret name, and key from the table for
-Redis and RustFS. The output is sensitive; do not paste it into chat or logs.
-
-Update the relevant gitignored `.env` files under `apps/` and `packages/db/`:
+The app and database `.env.example` files use these k3d port-forwards. Copy
+examples to gitignored `.env` files if needed, without overwriting existing
+files. Existing `.env` files need their relevant URLs updated to:
 
 ```dotenv
-DATABASE_URL=postgresql://mercel:<postgres-password>@127.0.0.1:15432/mercel
-REDIS_URL=redis://default:<redis-password>@127.0.0.1:16379
+DATABASE_URL=postgresql://mercel:mercel-local-secret@127.0.0.1:15432/mercel
+REDIS_URL=redis://default:mercel-local-secret@127.0.0.1:16379
 S3_ENDPOINT=http://127.0.0.1:19000
 S3_BUCKET=mercel
 AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=<rustfs-access-key>
-AWS_SECRET_ACCESS_KEY=<rustfs-secret-key>
+AWS_ACCESS_KEY_ID=mercel-local
+AWS_SECRET_ACCESS_KEY=mercel-local-secret
 ```
 
-Replace placeholders with the Secret values. Open `http://localhost:19001`, sign
-in with the RustFS access/secret keys, and create the private `mercel` bucket.
-Bucket creation is a one-time manual step, matching the Compose setup.
+These values assume the local example credentials from bootstrap. For an
+existing cluster with different credentials, use its Secret values instead.
+GitHub OAuth and OpenCode API keys still need real credentials; their example
+values remain blank.
+
+Open `http://localhost:19001`, sign in with access key `mercel-local` and secret
+key `mercel-local-secret`, and create the private `mercel` bucket. Bucket
+creation is a one-time manual step.
 
 Run `bun run db:migrate`, then `bun run dev`. Keep port-forwards running. Host
 processes cannot use cluster DNS names; apps moved into Kubernetes should use the
 internal endpoints in the table instead.
 
-These services start with empty data. Compose volumes do not migrate
+These services start with empty data. Existing Docker volumes are not imported
 automatically. PostgreSQL and RustFS connections inside this local cluster are
 not configured for TLS; do not expose these Services publicly.
 

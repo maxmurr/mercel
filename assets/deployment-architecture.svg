@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1320" height="660" viewBox="0 0 1320 660" role="img" aria-labelledby="title description" font-family="Helvetica, Arial, sans-serif">
   <title id="title">Deployment overview</title>
   <desc id="description">The web client submits repository URLs and polls status. The upload server clones Git, stores source in S3-compatible storage, and queues work in Redis. The worker reads source, builds in Docker, publishes assets, and records deployment status in Postgres. The request handler serves built assets to site visitors. Ports shown are local defaults.</desc>
-  <metadata>{"sources": ["apps/upload-server/src/upload-server.ts", "apps/deploy-worker/src/deploy-worker.ts", "apps/request-handler-server/src/request-handler-server.ts", "apps/web-client/src/lib/deployment.ts", "apps/web-client/src/components/new-project/new-project-form.tsx", "packages/utils/src/build-app.ts", "compose.yml"], "level": "high-level"}</metadata>
+  <metadata>{"sources": ["apps/upload-server/src/upload-server.ts", "apps/deploy-worker/src/deploy-worker.ts", "apps/request-handler-server/src/request-handler-server.ts", "apps/web-client/src/lib/deployment.ts", "apps/web-client/src/components/new-project/new-project-form.tsx", "packages/utils/src/build-app.ts", "infra/README.md"], "level": "high-level"}</metadata>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
       <path d="M1 1 L9 5 L1 9" fill="none" stroke="#626262" stroke-width="1.5" />

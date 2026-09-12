@@ -211,8 +211,9 @@ callback URL `http://localhost:3002/api/auth/callback/github`, then add to
 `apps/web-client/.env`:
 
 ```dotenv
-DATABASE_URL=postgresql://mercel:mercel-local-secret@localhost:5432/mercel
-BETTER_AUTH_SECRET=run-openssl-rand-base64-32
+# Local k3d defaults only. Never use these credentials outside local development.
+DATABASE_URL=postgresql://mercel:mercel-local-secret@127.0.0.1:15432/mercel
+BETTER_AUTH_SECRET=mercel-local-auth-secret-not-for-production
 BETTER_AUTH_URL=http://localhost:3002
 GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
