@@ -74,6 +74,7 @@ interface TreeNodeProps {
   onSelect: (path: string) => void;
   parentPath: string;
   selectedPath: string | undefined;
+  threadId: string;
 }
 
 function FileNode({
@@ -115,6 +116,7 @@ function DirectoryNode({
   onSelect,
   parentPath,
   selectedPath,
+  threadId,
 }: TreeNodeProps) {
   const path = childPath(parentPath, entry.name);
   const [isOpen, setIsOpen] = useState(false);
@@ -147,6 +149,7 @@ function DirectoryNode({
           onSelect={onSelect}
           path={path}
           selectedPath={selectedPath}
+          threadId={threadId}
         />
       ) : null}
     </li>
@@ -159,6 +162,7 @@ interface EntryListProps {
   onSelect: (path: string) => void;
   path: string;
   selectedPath: string | undefined;
+  threadId: string;
 }
 
 export function EntryList({
@@ -167,6 +171,7 @@ export function EntryList({
   onSelect,
   path,
   selectedPath,
+  threadId,
 }: EntryListProps) {
   return (
     <ul>
@@ -180,6 +185,7 @@ export function EntryList({
             onSelect={onSelect}
             parentPath={path}
             selectedPath={selectedPath}
+            threadId={threadId}
           />
         );
       })}
@@ -195,8 +201,9 @@ function DirectoryEntries({
   onSelect,
   path,
   selectedPath,
+  threadId,
 }: DirectoryEntriesProps) {
-  const directoryQuery = useQuery(directoryOptions(path));
+  const directoryQuery = useQuery(directoryOptions(threadId, path));
 
   if (directoryQuery.isPending) {
     return <TreeSkeleton depth={depth} rows={2} />;
@@ -227,6 +234,7 @@ function DirectoryEntries({
       onSelect={onSelect}
       path={path}
       selectedPath={selectedPath}
+      threadId={threadId}
     />
   );
 }

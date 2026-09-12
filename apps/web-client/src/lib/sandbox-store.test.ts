@@ -6,7 +6,34 @@ import {
 } from "@/lib/sandbox-store";
 
 beforeEach(() => {
-  useSandboxStore.setState({ lastLogSeq: 0, logs: [], preview: undefined });
+  useSandboxStore.setState({
+    lastLogSeq: 0,
+    logs: [],
+    preview: undefined,
+    threadId: undefined,
+  });
+});
+
+it("clears the preview and console when another thread opens", () => {
+  const { resetForThread } = useSandboxStore.getState();
+  resetForThread("thread-a");
+  handleSandboxData({
+    data: { url: "http://localhost:5173" },
+    type: "data-preview",
+  });
+  handleSandboxData({
+    data: { output: "building…\n", timestamp: 1000 },
+    type: "data-sandbox-stdout",
+  });
+
+  resetForThread("thread-a");
+  expect(useSandboxStore.getState().preview?.url).toBe("http://localhost:5173");
+  expect(useSandboxStore.getState().logs).toHaveLength(1);
+
+  resetForThread("thread-b");
+  expect(useSandboxStore.getState().preview).toBeUndefined();
+  expect(useSandboxStore.getState().logs).toEqual([]);
+  expect(useSandboxStore.getState().lastLogSeq).toBe(0);
 });
 
 it("opens the preview and bumps the revision on every URL", () => {

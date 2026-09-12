@@ -178,7 +178,7 @@ it("sends only the newest message with the thread and its owner", async () => {
   expect(JSON.parse(String(call[1]?.body))).toEqual({
     memory: { resource: "user-1", thread: "thread-1" },
     messages: [messages[2]],
-    requestContext: { opencodeSessionId: "thread-1" },
+    requestContext: { opencodeSessionId: "thread-1", threadId: "thread-1" },
   });
 
   vi.unstubAllGlobals();

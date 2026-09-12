@@ -1,26 +1,40 @@
 import { randomUUID } from "node:crypto";
 import { Agent } from "@mastra/core/agent";
+import type { RequestContext } from "@mastra/core/request-context";
 import { smoothStream } from "@mastra/core/stream";
 import { webFetchTool } from "@mastra/core/tools";
-import {
-  LocalFilesystem,
-  LocalSandbox,
-  WORKSPACE_TOOLS,
-  Workspace,
-} from "@mastra/core/workspace";
+import { WORKSPACE_TOOLS, Workspace } from "@mastra/core/workspace";
 import { Memory } from "@mastra/memory";
 import { z } from "zod";
 import { recordProcessLog } from "../../lib/process-log";
 import { designBriefProcessor } from "../processors/design-brief";
+import { threadFilesystem, threadSandbox } from "../thread-workspace";
 import { exa } from "../tools/exa";
 import { openPreviewTool } from "../tools/preview";
 import instructions from "./instructions.md";
 
-/** Shared root for file tools and shell commands, resolved from process.cwd(). */
-const workspaceDir = ".sandbox";
-
-/** Agent Skills (`SKILL.md` dirs), resolved from process.cwd() like workspaceDir. */
+/** Agent Skills (`SKILL.md` dirs), resolved from process.cwd(). */
 const skillsDir = "src/mastra/skills";
+
+/** Thread the files and commands belong to, when the request names one. */
+function threadIdFrom(requestContext: RequestContext): string | undefined {
+  const threadId = requestContext.get("threadId");
+  return typeof threadId === "string" ? threadId : undefined;
+}
+
+/**
+ * Same, for commands. Every chat owns a separate sandbox, so a request that
+ * names no thread has nowhere to run rather than a shared one to fall back on.
+ */
+function requireThreadId(requestContext: RequestContext): string {
+  const threadId = threadIdFrom(requestContext);
+  if (!threadId) {
+    throw new Error(
+      "The sandbox is per thread: send threadId in the request context."
+    );
+  }
+  return threadId;
+}
 
 /** Writing files, installing, starting the server, and previewing takes many tool rounds. */
 const maxSteps = 40;
@@ -56,6 +70,7 @@ export const agent = new Agent({
   name: "Agent",
   requestContextSchema: z.object({
     opencodeSessionId: z.uuid().optional(),
+    threadId: z.uuid().optional(),
   }),
   skills: [skillsDir],
   tools: async () => ({
@@ -65,22 +80,13 @@ export const agent = new Agent({
   }),
   workspace: new Workspace({
     bm25: true,
-    filesystem: new LocalFilesystem({ basePath: workspaceDir }),
-    // Stable id so the web client can address this workspace's filesystem routes.
+    filesystem: ({ requestContext }) =>
+      threadFilesystem(threadIdFrom(requestContext)),
     id: "sandbox",
-    sandbox: new LocalSandbox({
-      env: {
-        HOME: process.env.HOME,
-        NODE_ENV: process.env.NODE_ENV,
-        PATH: process.env.PATH,
-      },
-      isolation: process.platform === "darwin" ? "seatbelt" : "bwrap",
-      nativeSandbox: {
-        allowNetwork: true,
-        readWritePaths: [`${process.env.HOME}/.npm`],
-      },
-      workingDirectory: workspaceDir,
-    }),
+    sandbox: ({ requestContext }) =>
+      threadSandbox(requireThreadId(requestContext)),
+    // Keyed by thread so a later turn reaches the same live sandbox, dev servers included.
+    sandboxCacheKey: ({ requestContext }) => requireThreadId(requestContext),
     tools: {
       // Require reading a file before editing it (safer)
       [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: {

@@ -24,6 +24,8 @@ interface SandboxState {
   logs: WebPreviewConsoleLog[];
   openPreview: (url: string) => void;
   preview?: { revision: number; url: string } | undefined;
+  resetForThread: (threadId: string) => void;
+  threadId?: string | undefined;
 }
 
 function toConsoleLog(entry: ProcessLogEntry): WebPreviewConsoleLog {
@@ -35,7 +37,7 @@ function toConsoleLog(entry: ProcessLogEntry): WebPreviewConsoleLog {
   };
 }
 
-/** Preview URL and console output for the shared sandbox; outlives individual chat sessions. */
+/** Preview URL and console output for the open thread's sandbox; one store, swapped per thread. */
 export const useSandboxStore = create<SandboxState>()((set) => ({
   appendLogs: (logs) =>
     set((state) => ({ logs: [...state.logs, ...logs].slice(-maxLogs) })),
@@ -58,6 +60,13 @@ export const useSandboxStore = create<SandboxState>()((set) => ({
     set((state) => ({
       preview: { revision: (state.preview?.revision ?? 0) + 1, url },
     })),
+  // The store outlives client navigation, so opening another thread must not inherit its preview or console.
+  resetForThread: (threadId) =>
+    set((state) =>
+      state.threadId === threadId
+        ? state
+        : { lastLogSeq: 0, logs: [], preview: undefined, threadId }
+    ),
 }));
 
 /**

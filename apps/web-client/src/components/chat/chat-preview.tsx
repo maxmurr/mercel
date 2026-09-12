@@ -15,12 +15,18 @@ import { cn } from "@/lib/utils";
 
 interface ChatPreviewProps {
   className?: string;
+  threadId: string;
   title: string;
   url?: string | undefined;
 }
 
 /** Shows a script-enabled chat preview, or an empty state until the caller supplies a separate-origin URL. */
-export function ChatPreview({ className, title, url }: ChatPreviewProps) {
+export function ChatPreview({
+  className,
+  threadId,
+  title,
+  url,
+}: ChatPreviewProps) {
   const [previewRevision, setPreviewRevision] = useState(0);
 
   const handlePreviewReload = useCallback(() => {
@@ -63,7 +69,7 @@ export function ChatPreview({ className, title, url }: ChatPreviewProps) {
           title="No preview yet"
         />
       )}
-      <SandboxConsole />
+      <SandboxConsole threadId={threadId} />
     </WebPreview>
   );
 }

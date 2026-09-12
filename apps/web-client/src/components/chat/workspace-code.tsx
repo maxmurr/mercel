@@ -152,8 +152,14 @@ function CodeViewer({ code, language }: CodeViewerProps) {
 }
 
 /** Downloads one workspace file and shows it highlighted for its extension. */
-export function FileBody({ path }: { path: string }) {
-  const fileQuery = useQuery(fileOptions(path));
+export function FileBody({
+  path,
+  threadId,
+}: {
+  path: string;
+  threadId: string;
+}) {
+  const fileQuery = useQuery(fileOptions(threadId, path));
 
   if (fileQuery.isPending) {
     return <CodeSkeleton />;

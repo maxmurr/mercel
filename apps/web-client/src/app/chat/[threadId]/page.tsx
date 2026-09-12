@@ -138,12 +138,13 @@ export default function ChatThreadPage() {
                 <TabsContent className="min-h-0" keepMounted value="preview">
                   <ChatPreview
                     key={preview?.revision}
+                    threadId={threadId}
                     title="Agent preview"
                     url={preview?.url}
                   />
                 </TabsContent>
                 <TabsContent className="min-h-0" value="code">
-                  <ChatCode />
+                  <ChatCode threadId={threadId} />
                 </TabsContent>
               </Tabs>
             </ChatPanel>

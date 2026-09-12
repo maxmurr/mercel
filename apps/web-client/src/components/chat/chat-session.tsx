@@ -146,13 +146,15 @@ function ChatThreadError({ onRetry }: { onRetry: () => void }) {
 export function ChatSession({ id }: { id: string }) {
   const { data: thread, isPending, refetch } = useQuery(threadOptions(id));
   const openPreview = useSandboxStore((state) => state.openPreview);
+  const resetForThread = useSandboxStore((state) => state.resetForThread);
 
   useEffect(() => {
+    resetForThread(id);
     const url = thread && lastPreviewUrl(thread.messages);
     if (url) {
       openPreview(url);
     }
-  }, [openPreview, thread]);
+  }, [id, openPreview, resetForThread, thread]);
 
   const handleRetry = useCallback(() => {
     refetch();

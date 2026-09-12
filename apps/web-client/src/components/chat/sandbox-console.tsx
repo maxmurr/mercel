@@ -9,9 +9,11 @@ import { useSandboxStore } from "@/lib/sandbox-store";
 const processLogsApi = "/api/sandbox/logs";
 const pollIntervalMs = 2000;
 
-async function fetchProcessLogs() {
+async function fetchProcessLogs(threadId: string) {
   const after = useSandboxStore.getState().lastLogSeq;
-  const response = await fetch(`${processLogsApi}?after=${after}`);
+  const response = await fetch(
+    `${processLogsApi}/${encodeURIComponent(threadId)}?after=${after}`
+  );
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
   }
@@ -20,7 +22,7 @@ async function fetchProcessLogs() {
 }
 
 /** Console drawer fed by streamed command output plus polled dev-server logs. */
-export function SandboxConsole() {
+export function SandboxConsole({ threadId }: { threadId: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const logs = useSandboxStore((state) => state.logs);
   const hasPreview = useSandboxStore((state) => state.preview !== undefined);
@@ -28,8 +30,8 @@ export function SandboxConsole() {
   // Background processes only report to the server, so poll while anyone is looking.
   const { data: entries } = useQuery({
     enabled: isOpen || hasPreview,
-    queryFn: fetchProcessLogs,
-    queryKey: ["sandbox-process-logs"],
+    queryFn: () => fetchProcessLogs(threadId),
+    queryKey: ["sandbox-process-logs", threadId],
     refetchInterval: pollIntervalMs,
     staleTime: 0,
   });

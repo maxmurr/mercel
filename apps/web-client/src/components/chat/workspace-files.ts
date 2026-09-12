@@ -1,7 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
-// Matches the workspace id configured on the agent in src/mastra/agents/agent.ts.
-const workspaceFilesApi = "/api/mastra/workspaces/sandbox/fs";
+const workspaceFilesApi = "/api/workspace";
 const hiddenEntries = new Set(["node_modules", ".git"]);
 // The agent keeps editing files, so folders and the open file refresh while the tab is visible.
 const liveRefreshMs = 2000;
@@ -15,11 +14,12 @@ export interface WorkspaceEntry {
 }
 
 async function fetchWorkspace<T>(
+  threadId: string,
   endpoint: "list" | "read",
   path: string
 ): Promise<T> {
   const response = await fetch(
-    `${workspaceFilesApi}/${endpoint}?path=${encodeURIComponent(path)}`
+    `${workspaceFilesApi}/${encodeURIComponent(threadId)}/${endpoint}?path=${encodeURIComponent(path)}`
   );
   const data: T & { error?: string } = await response.json();
   if (!response.ok || data.error) {
@@ -37,10 +37,11 @@ function compareEntries(a: WorkspaceEntry, b: WorkspaceEntry) {
   return a.name.localeCompare(b.name);
 }
 
-export function directoryOptions(path: string) {
+export function directoryOptions(threadId: string, path: string) {
   return queryOptions({
-    queryFn: () => fetchWorkspace<{ entries: WorkspaceEntry[] }>("list", path),
-    queryKey: ["workspace-directory", path],
+    queryFn: () =>
+      fetchWorkspace<{ entries: WorkspaceEntry[] }>(threadId, "list", path),
+    queryKey: ["workspace-directory", threadId, path],
     refetchInterval: liveRefreshMs,
     select: (data) =>
       data.entries
@@ -50,10 +51,10 @@ export function directoryOptions(path: string) {
   });
 }
 
-export function fileOptions(path: string) {
+export function fileOptions(threadId: string, path: string) {
   return queryOptions({
-    queryFn: () => fetchWorkspace<{ content: string }>("read", path),
-    queryKey: ["workspace-file", path],
+    queryFn: () => fetchWorkspace<{ content: string }>(threadId, "read", path),
+    queryKey: ["workspace-file", threadId, path],
     refetchInterval: liveRefreshMs,
     select: (data) => data.content,
     staleTime: 0,

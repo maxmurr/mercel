@@ -27,6 +27,8 @@ vi.mock("@streamdown/code", () => ({
   },
 }));
 
+const threadId = "2a2f7b1c-0d3e-4f5a-8b9c-0d1e2f3a4b5c";
+
 const directories: Record<string, { name: string; type: string }[]> = {
   ".": [
     { name: "index.html", type: "file" },
@@ -54,9 +56,12 @@ function workspaceResponse(url: string) {
     { error: `Path "${path}" not found` },
     { status: 404 }
   );
-  if (pathname.endsWith("/fs/list")) {
+  if (pathname === `/api/workspace/${threadId}/list`) {
     const entries = directories[path];
     return entries ? Response.json({ entries, path }) : notFound;
+  }
+  if (pathname !== `/api/workspace/${threadId}/read`) {
+    return notFound;
   }
   const content = files[path];
   return content === undefined
@@ -109,7 +114,7 @@ async function renderChatCode() {
     root.render(
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <ChatCode />
+          <ChatCode threadId={threadId} />
         </TooltipProvider>
       </QueryClientProvider>
     )
@@ -149,7 +154,7 @@ function codeLines() {
 it("lists folders first, hides node_modules, and expands folders on demand", async () => {
   await renderChatCode();
   expect(fetchMock).toHaveBeenCalledWith(
-    "/api/mastra/workspaces/sandbox/fs/list?path=."
+    `/api/workspace/${threadId}/list?path=.`
   );
   expect(treeLabels()).toEqual([
     "broken",
@@ -167,7 +172,7 @@ it("lists folders first, hides node_modules, and expands folders on demand", asy
 
   await clickButton("src");
   expect(fetchMock).toHaveBeenCalledWith(
-    "/api/mastra/workspaces/sandbox/fs/list?path=src"
+    `/api/workspace/${threadId}/list?path=src`
   );
   expect(
     container.querySelector('nav [aria-expanded="true"]')?.textContent
@@ -194,7 +199,7 @@ it("shows the selected file with a breadcrumb, line numbers, and themed tokens",
   await clickButton("main.jsx");
 
   expect(fetchMock).toHaveBeenCalledWith(
-    "/api/mastra/workspaces/sandbox/fs/read?path=src%2Fmain.jsx"
+    `/api/workspace/${threadId}/read?path=src%2Fmain.jsx`
   );
   expect(container.querySelector('[aria-current="true"]')?.textContent).toBe(
     "main.jsx"

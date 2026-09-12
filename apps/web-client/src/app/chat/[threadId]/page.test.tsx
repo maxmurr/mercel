@@ -285,13 +285,17 @@ it("starts empty with a placeholder preview and accessible layout", async () => 
   ).toBe("false");
   // Opening the console starts polling dev-server logs; nothing else touches the network.
   expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
-    "/api/sandbox/logs?after=0",
+    `/api/sandbox/logs/${threadId}?after=0`,
   ]);
 });
 
 it("frames a supplied URL in a sandboxed separate-origin iframe", async () => {
   await renderWithProviders(
-<ChatPreview title="Example site" url="http://abc12.localhost:3001/" />
+    <ChatPreview
+      threadId={threadId}
+      title="Example site"
+      url="http://abc12.localhost:3001/"
+    />
   );
   const preview = container.querySelector("iframe");
   expect(preview?.getAttribute("src")).toBe("http://abc12.localhost:3001/");
@@ -448,7 +452,10 @@ it("sends the newest message with its memory thread and reuses routing sessions 
   expect(newBody.messages).toHaveLength(1);
   expect(threadId).not.toBe(initialThreadId);
   expect(newBody.memory).toEqual({ resource: threadId, thread: threadId });
-  expect(newBody.requestContext).toEqual({ opencodeSessionId: threadId });
+  expect(newBody.requestContext).toEqual({
+    opencodeSessionId: threadId,
+    threadId,
+  });
 });
 
 it("streams tool calls in order through running, done, failed, and refused states", async () => {

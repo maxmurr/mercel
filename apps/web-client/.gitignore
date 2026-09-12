@@ -1,5 +1,7 @@
 .mastra/
 .next/
+.sandbox/
+.sandbox-profiles/
 out/
 .vercel/
 next-env.d.ts

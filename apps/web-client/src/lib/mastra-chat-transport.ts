@@ -251,7 +251,8 @@ export function createChatTransport(resourceId: string) {
   return new MastraChatTransport({
     api: `${agentApi}/stream`,
     prepareSendMessagesRequest: ({ id, messages }) => {
-      const requestContext = { opencodeSessionId: id };
+      // threadId picks the thread's own sandbox; without it the agent has nowhere to build.
+      const requestContext = { opencodeSessionId: id, threadId: id };
       // An answered approval resumes the suspended run instead of starting a new turn.
       const approval = toolApprovalRequest(messages);
       if (approval) {

@@ -70,9 +70,10 @@ function FileHeader({ onShowTree, path }: FileHeaderProps) {
 interface FilePaneProps {
   onShowTree: () => void;
   selectedPath: string | undefined;
+  threadId: string;
 }
 
-function FilePane({ onShowTree, selectedPath }: FilePaneProps) {
+function FilePane({ onShowTree, selectedPath, threadId }: FilePaneProps) {
   if (selectedPath === undefined) {
     return (
       <EmptyState
@@ -86,7 +87,7 @@ function FilePane({ onShowTree, selectedPath }: FilePaneProps) {
   return (
     <>
       <FileHeader onShowTree={onShowTree} path={selectedPath} />
-      <FileBody path={selectedPath} />
+      <FileBody path={selectedPath} threadId={threadId} />
     </>
   );
 }
@@ -103,8 +104,8 @@ function WorkspaceEmpty({ title }: { title: string }) {
 }
 
 /** Browses the agent's sandbox: a lazily loaded file tree beside a read-only, highlighted viewer. */
-function WorkspaceBrowser() {
-  const rootQuery = useQuery(directoryOptions(rootPath));
+function WorkspaceBrowser({ threadId }: { threadId: string }) {
+  const rootQuery = useQuery(directoryOptions(threadId, rootPath));
   const [selectedPath, setSelectedPath] = useState<string>();
   // Narrow containers show either the tree or the file; wide ones show both.
   const [isTreeOpen, setIsTreeOpen] = useState(true);
@@ -148,6 +149,7 @@ function WorkspaceBrowser() {
               onSelect={handleSelect}
               path={rootPath}
               selectedPath={selectedPath}
+              threadId={threadId}
             />
           ) : (
             <TreeSkeleton depth={0} />
@@ -162,20 +164,30 @@ function WorkspaceBrowser() {
         )}
       >
         {entries ? (
-          <FilePane onShowTree={handleShowTree} selectedPath={selectedPath} />
+          <FilePane
+            onShowTree={handleShowTree}
+            selectedPath={selectedPath}
+            threadId={threadId}
+          />
         ) : null}
       </section>
     </>
   );
 }
 
-export function ChatCode({ className }: { className?: string }) {
+export function ChatCode({
+  className,
+  threadId,
+}: {
+  className?: string;
+  threadId: string;
+}) {
   return (
     <div className={cn("flex h-full min-h-0 min-w-0 flex-col", className)}>
       <div className="@container flex min-h-0 min-w-0 flex-1">
-        <WorkspaceBrowser />
+        <WorkspaceBrowser threadId={threadId} />
       </div>
-      <SandboxConsole />
+      <SandboxConsole threadId={threadId} />
     </div>
   );
 }

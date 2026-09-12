@@ -36,8 +36,11 @@ function waitForLocalUrl(handle: ProcessHandle) {
 export const openPreviewTool = createTool({
   description:
     "Show a running dev server in the preview panel. Pass the PID returned by execute_command with background: true. Waits until the process prints its http://localhost:PORT URL and reports the reason if it cannot.",
-  execute: async ({ pid }, { workspace, writer }) => {
-    const handle = await workspace?.sandbox?.processes?.get(pid);
+  execute: async ({ pid }, { requestContext, workspace, writer }) => {
+    // The sandbox is resolved per thread, so the static `workspace.sandbox` is empty.
+    const sandbox =
+      requestContext && (await workspace?.resolveSandbox({ requestContext }));
+    const handle = await sandbox?.processes?.get(pid);
     if (!handle) {
       return {
         message: `No background process with PID ${pid}. Start the dev server with execute_command (background: true) first.`,
