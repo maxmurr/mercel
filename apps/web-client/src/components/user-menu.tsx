@@ -1,8 +1,9 @@
 "use client";
 
-import { LogOutIcon } from "lucide-react";
+import { LogOutIcon, SunMoonIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
+import { ThemeMenuItems } from "@/components/theme-switcher";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +11,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -99,6 +103,15 @@ export function UserMenu() {
           </div>
         </div>
         <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="min-h-11">
+            <SunMoonIcon aria-hidden="true" />
+            Theme
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-40">
+            <ThemeMenuItems />
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuItem className="min-h-11" onClick={signOut}>
           <LogOutIcon aria-hidden="true" />
           Sign out

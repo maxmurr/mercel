@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { UploadIcon } from "lucide-react";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -36,7 +35,6 @@ export function ChatHeader({ className, threadId }: ChatHeaderProps) {
         </h1>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <ThemeSwitcher />
         <Button className="h-11" variant="default">
           <UploadIcon data-icon="inline-start" />
           Publish

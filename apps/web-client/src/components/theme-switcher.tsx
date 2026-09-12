@@ -19,10 +19,24 @@ const themeOptions = [
   { icon: MonitorIcon, label: "System", value: "system" },
 ];
 
-/** Switches the persisted app theme; system follows the device's color scheme. */
-export function ThemeSwitcher() {
+/** Lists the theme choices; drop it inside any dropdown menu that owns the popup. */
+export function ThemeMenuItems() {
   const { setTheme, theme } = useTheme();
 
+  return (
+    <DropdownMenuRadioGroup onValueChange={setTheme} value={theme}>
+      {themeOptions.map(({ icon: Icon, label, value }) => (
+        <DropdownMenuRadioItem className="min-h-11" key={value} value={value}>
+          <Icon aria-hidden="true" />
+          {label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+}
+
+/** Switches the persisted app theme; system follows the device's color scheme. */
+export function ThemeSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -44,18 +58,7 @@ export function ThemeSwitcher() {
       >
         <DropdownMenuGroup>
           <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup onValueChange={setTheme} value={theme}>
-            {themeOptions.map(({ icon: Icon, label, value }) => (
-              <DropdownMenuRadioItem
-                className="min-h-11"
-                key={value}
-                value={value}
-              >
-                <Icon aria-hidden="true" />
-                {label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
+          <ThemeMenuItems />
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -50,6 +50,16 @@ async function openMenu() {
   await act(() => trigger.click());
 }
 
+function menuItemWithText(text: string): HTMLElement {
+  const item = Array.from(
+    document.querySelectorAll<HTMLElement>('[role="menuitem"]')
+  ).find((entry) => entry.textContent === text);
+  if (!item) {
+    throw new Error(`Account menu item not found: ${text}`);
+  }
+  return item;
+}
+
 it("shows the account monogram and details, then signs out", async () => {
   await renderMenu(
     sessionFor({ email: "ada@example.com", name: "Ada Lovelace" })
@@ -61,10 +71,22 @@ it("shows the account monogram and details, then signs out", async () => {
   expect(menu?.textContent).toContain("Ada Lovelace");
   expect(menu?.textContent).toContain("ada@example.com");
 
-  const signOutItem = document.querySelector<HTMLElement>('[role="menuitem"]');
-  await act(() => signOutItem?.click());
+  await act(() => menuItemWithText("Sign out").click());
   expect(signOut).toHaveBeenCalledOnce();
   expect(push).toHaveBeenCalledWith("/sign-in");
+});
+
+it("opens the theme choices above sign out", async () => {
+  await renderMenu(
+    sessionFor({ email: "ada@example.com", name: "Ada Lovelace" })
+  );
+  await openMenu();
+  await act(() => menuItemWithText("Theme").click());
+
+  const themeLabels = Array.from(
+    document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')
+  ).map((option) => option.textContent);
+  expect(themeLabels).toEqual(["Light", "Dark", "System"]);
 });
 
 it("falls back to the email when the account has no name", async () => {
