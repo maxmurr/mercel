@@ -14,14 +14,25 @@ const templateDir = "templates/vite-react";
 const threadIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** A sandbox no turn has used for this long is stopped; a turn is far shorter. */
+export const sandboxIdleTtlMs = 30 * 60 * 1000;
+
+const sweepIntervalMs = 60 * 1000;
+
 const execFileAsync = promisify(execFile);
 
 /** Largest archive publishing holds in memory; a project without node_modules is far smaller. */
 const archiveMaxBytes = 64 * 1024 * 1024;
 
+interface ThreadSandboxEntry {
+  lastUsedAt: number;
+  sandbox: LocalSandbox;
+}
+
 // Lives on globalThis so the agent and the API routes share one cache across Next's module instances and HMR reloads.
 const globalStore = globalThis as typeof globalThis & {
-  mercelThreadSandboxes?: Map<string, LocalSandbox>;
+  mercelThreadSandboxes?: Map<string, ThreadSandboxEntry>;
+  mercelThreadSandboxSweeper?: ReturnType<typeof setInterval>;
 };
 if (!globalStore.mercelThreadSandboxes) {
   globalStore.mercelThreadSandboxes = new Map();
@@ -77,13 +88,15 @@ function seedThreadWorkspace(workingDirectory: string): void {
 
 /**
  * The thread's sandbox, created on first use and reused afterwards so the dev
- * servers it started stay reachable across turns.
+ * servers it started stay reachable across turns. Each call counts as a turn
+ * for the idle TTL.
  */
 export function threadSandbox(threadId: string): LocalSandbox {
   const workingDirectory = threadWorkspaceDir(threadId);
   const cached = sandboxes.get(threadId);
   if (cached) {
-    return cached;
+    cached.lastUsedAt = Date.now();
+    return cached.sandbox;
   }
   seedThreadWorkspace(workingDirectory);
   // LocalSandbox starts itself on the first command, so nothing here has to wait for it.
@@ -100,7 +113,7 @@ export function threadSandbox(threadId: string): LocalSandbox {
     },
     workingDirectory,
   });
-  sandboxes.set(threadId, sandbox);
+  sandboxes.set(threadId, { lastUsedAt: Date.now(), sandbox });
   return sandbox;
 }
 
@@ -108,7 +121,33 @@ export function threadSandbox(threadId: string): LocalSandbox {
 export function existingThreadSandbox(
   threadId: string
 ): LocalSandbox | undefined {
-  return sandboxes.get(threadId);
+  return sandboxes.get(threadId)?.sandbox;
+}
+
+/**
+ * Stops and forgets every sandbox that no turn has used for `sandboxIdleTtlMs`.
+ *
+ * Destroying a LocalSandbox kills its background processes, the dev servers,
+ * and leaves the thread's files alone, so the next turn starts a fresh sandbox
+ * in the same directory. The interval below calls this once a minute.
+ */
+export function stopIdleThreadSandboxes(now = Date.now()): void {
+  for (const [threadId, { lastUsedAt, sandbox }] of sandboxes) {
+    if (now - lastUsedAt < sandboxIdleTtlMs) {
+      continue;
+    }
+    sandboxes.delete(threadId);
+    // ponytail: a kill that fails leaves the dev server orphaned, as a restart does today; the sandbox is dropped either way.
+    sandbox._destroy().catch(() => undefined);
+  }
+}
+
+if (!globalStore.mercelThreadSandboxSweeper) {
+  // Unref'd so the sweeper never keeps the server or a test run alive on its own.
+  globalStore.mercelThreadSandboxSweeper = setInterval(
+    stopIdleThreadSandboxes,
+    sweepIntervalMs
+  ).unref();
 }
 
 /**

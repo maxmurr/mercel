@@ -83,10 +83,11 @@ export const agent = new Agent({
     filesystem: ({ requestContext }) =>
       threadFilesystem(threadIdFrom(requestContext)),
     id: "sandbox",
+    // Resolved on every request rather than cached by thread here: the thread
+    // cache in thread-workspace.ts returns the same live sandbox, dev servers
+    // included, and sees each turn so the idle TTL counts from the last one.
     sandbox: ({ requestContext }) =>
       threadSandbox(requireThreadId(requestContext)),
-    // Keyed by thread so a later turn reaches the same live sandbox, dev servers included.
-    sandboxCacheKey: ({ requestContext }) => requireThreadId(requestContext),
     tools: {
       // Require reading a file before editing it (safer)
       [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: {

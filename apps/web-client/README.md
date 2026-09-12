@@ -154,7 +154,9 @@ file every two seconds while visible.
 
 Each thread keeps its own sandbox, created on first use and reused across turns
 (`src/mastra/thread-workspace.ts`); dev servers keep running after the request
-that started them. The agent can stop them with `kill_process` while the server
+that started them. A sandbox that no turn has used for 30 minutes is stopped:
+its dev servers are killed, its files stay in `.sandbox/<threadId>`, and the
+next turn starts a fresh sandbox there. Before that, the agent can stop them with `kill_process` while the server
 process that spawned them is alive; after a Next.js restart or HMR reload of the
 agent module they are orphaned, so kill
 stray `vite` processes yourself. `open_preview` reads the URL from the process

@@ -9,9 +9,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   existingThreadSandbox,
+  sandboxIdleTtlMs,
+  stopIdleThreadSandboxes,
   threadSandbox,
   threadWorkspaceDir,
 } from "./thread-workspace";
@@ -20,6 +22,8 @@ const threadA = "11111111-1111-4111-8111-111111111111";
 const threadB = "22222222-2222-4222-8222-222222222222";
 const threadC = "44444444-4444-4444-8444-444444444444";
 const threadD = "55555555-5555-4555-8555-555555555555";
+const threadE = "66666666-6666-4666-8666-666666666666";
+const threadF = "77777777-7777-4777-8777-777777777777";
 const invalidThreadId = /Invalid thread ID/;
 
 // Each test runs in its own cwd holding a stub starter, so seeding never touches the real .sandbox.
@@ -37,6 +41,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   process.chdir(originalCwd);
   rmSync(cwd, { force: true, recursive: true });
 });
@@ -72,6 +77,32 @@ it("seeds a new thread from the starter without its node_modules", () => {
   const threadDir = join(cwd, ".sandbox", threadC);
   expect(existsSync(join(threadDir, "src/App.tsx"))).toBe(true);
   expect(existsSync(join(threadDir, "node_modules"))).toBe(false);
+});
+
+it("destroys and forgets a sandbox once no turn has used it for the TTL", () => {
+  vi.useFakeTimers();
+  const createdAt = Date.now();
+  const sandbox = threadSandbox(threadE);
+
+  stopIdleThreadSandboxes(createdAt + sandboxIdleTtlMs - 1);
+  expect(existingThreadSandbox(threadE)).toBe(sandbox);
+
+  stopIdleThreadSandboxes(createdAt + sandboxIdleTtlMs);
+  expect(existingThreadSandbox(threadE)).toBeUndefined();
+  expect(sandbox.status).toBe("destroyed");
+  expect(threadSandbox(threadE)).not.toBe(sandbox);
+});
+
+it("counts each turn as use, so the TTL runs from the last one", () => {
+  vi.useFakeTimers();
+  const createdAt = Date.now();
+  const sandbox = threadSandbox(threadF);
+
+  vi.setSystemTime(createdAt + sandboxIdleTtlMs - 1);
+  threadSandbox(threadF);
+  stopIdleThreadSandboxes(createdAt + sandboxIdleTtlMs);
+
+  expect(existingThreadSandbox(threadF)).toBe(sandbox);
 });
 
 it("leaves a thread directory that already exists untouched", () => {
