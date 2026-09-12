@@ -81,6 +81,8 @@ const hiddenTools = new Set([
   "mastra_workspace_read_file",
   "mastra_workspace_search",
   "search_skills",
+  "skill",
+  "skill_read",
 ]);
 
 /** True for calls a reader gains nothing from; the conversation drops those parts. */

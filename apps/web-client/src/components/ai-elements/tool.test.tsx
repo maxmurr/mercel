@@ -285,6 +285,8 @@ it.each([
   ["mastra_workspace_grep", true],
   ["search_skills", true],
   ["load_skill", true],
+  ["skill", true],
+  ["skill_read", true],
   ["mastra_workspace_write_file", false],
   ["open_preview", false],
 ])("hides %s: %s", (toolName, hidden) => {
