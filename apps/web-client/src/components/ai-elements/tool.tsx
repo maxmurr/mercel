@@ -65,8 +65,13 @@ function statusOf(part: ToolPartValue): Status {
   }
 }
 
-/** Read-only workspace calls: the agent makes many per turn and none of them change anything. */
+/**
+ * Read-only workspace calls: the agent makes many per turn and none of them
+ * change anything. The skill meta-tools are hidden for a second reason: their
+ * input and output are the skill library itself, which stays ours.
+ */
 const hiddenTools = new Set([
+  "load_skill",
   "mastra_workspace_file_stat",
   "mastra_workspace_get_process_output",
   "mastra_workspace_grep",
@@ -75,6 +80,7 @@ const hiddenTools = new Set([
   "mastra_workspace_lsp_inspect",
   "mastra_workspace_read_file",
   "mastra_workspace_search",
+  "search_skills",
 ]);
 
 /** True for calls a reader gains nothing from; the conversation drops those parts. */

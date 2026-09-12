@@ -283,6 +283,8 @@ it.each([
   ["mastra_workspace_read_file", true],
   ["mastra_workspace_list_files", true],
   ["mastra_workspace_grep", true],
+  ["search_skills", true],
+  ["load_skill", true],
   ["mastra_workspace_write_file", false],
   ["open_preview", false],
 ])("hides %s: %s", (toolName, hidden) => {
