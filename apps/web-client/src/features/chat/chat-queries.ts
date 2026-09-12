@@ -1,8 +1,9 @@
 import "server-only";
 
 import { toAISdkMessages } from "@mastra/ai-sdk/ui";
-import type { UIMessage } from "ai";
+import { isToolUIPart, type UIMessage } from "ai";
 import { cache } from "react";
+import { isQuestionnairePart } from "@/features/chat/chat-questionnaire";
 import { threadAccess } from "@/features/chat/chat-thread-access";
 import { resumableRunId } from "@/features/chat/chat-thread-run";
 import type {
@@ -64,15 +65,59 @@ export async function getChatThread(
   if (access instanceof Response) {
     return access;
   }
-  const isStreaming = Boolean(await resumableRunId(access.userId, threadId));
-  const memory = await mastra.getAgentById("agent").getMemory();
+  const [runId, memory] = await Promise.all([
+    resumableRunId(access.userId, threadId),
+    mastra.getAgentById("agent").getMemory(),
+  ]);
+  const isStreaming = Boolean(runId);
   if (!(memory && access.thread)) {
     return { isStreaming, messages: [], resourceId: access.userId };
   }
-  const { messages } = await memory.recall({ perPage: false, threadId });
+  const [{ messages }, { runs }] = await Promise.all([
+    memory.recall({ perPage: false, threadId }),
+    mastra
+      .getAgentById("agent")
+      .listSuspendedRuns({ resourceId: access.userId, threadId }),
+  ]);
+  const pendingQuestions = new Map(
+    runs.flatMap((run) =>
+      run.toolCalls
+        .filter(
+          (tool) => tool.toolName === "ask_user" && !tool.requiresApproval
+        )
+        .map(
+          (tool) =>
+            [
+              tool.toolCallId,
+              { input: tool.suspendPayload, runId: run.runId },
+            ] as const
+        )
+    )
+  );
+  const uiMessages = toAISdkMessages(messages, { version: "v7" }).map(
+    (message) => ({
+      ...message,
+      parts: message.parts.map((part) => {
+        if (!(isToolUIPart(part) && isQuestionnairePart(part))) {
+          return part;
+        }
+        const pending = pendingQuestions.get(part.toolCallId);
+        return pending
+          ? {
+              approval: { id: `${pending.runId}::${part.toolCallId}` },
+              input: pending.input ?? part.input,
+              state: "approval-requested" as const,
+              toolCallId: part.toolCallId,
+              toolName: "ask_user",
+              type: "dynamic-tool" as const,
+            }
+          : part;
+      }),
+    })
+  );
   return {
     isStreaming,
-    messages: withoutDesignBrief(toAISdkMessages(messages, { version: "v7" })),
+    messages: withoutDesignBrief(uiMessages),
     resourceId: access.userId,
   };
 }

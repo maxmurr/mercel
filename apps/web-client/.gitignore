@@ -1,5 +1,9 @@
 .mastra/
 .next/
+.next-instant/
+.auth/
+playwright-report/
+test-results/
 .sandbox/
 .sandbox-profiles/
 out/

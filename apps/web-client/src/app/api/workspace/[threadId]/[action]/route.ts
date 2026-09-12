@@ -1,8 +1,6 @@
 import { threadAccess } from "@/features/chat/chat-thread-access";
 import { threadFilesystem } from "@/mastra/thread-workspace";
 
-export const runtime = "nodejs";
-
 /**
  * Browses one thread's sandbox files for the Code tab.
  *

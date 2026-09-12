@@ -9,6 +9,7 @@ import { z } from "zod";
 import { recordProcessLog } from "../../features/workspace/workspace-process-log";
 import { designBriefProcessor } from "../processors/design-brief";
 import { threadFilesystem, threadSandbox } from "../thread-workspace";
+import { askUserTool } from "../tools/ask-user";
 import { exa } from "../tools/exa";
 import { openPreviewTool } from "../tools/preview";
 import instructions from "./instructions.md";
@@ -101,6 +102,7 @@ export const agent = new Agent({
   }),
   skills: [skillsDir],
   tools: async () => ({
+    ask_user: askUserTool,
     web_fetch: webFetchTool,
     ...(await exa.listTools()),
     open_preview: openPreviewTool,

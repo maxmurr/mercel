@@ -2,8 +2,6 @@ import { threadAccess } from "@/features/chat/chat-thread-access";
 import { readProcessLogs } from "@/features/workspace/workspace-process-log";
 import { existingThreadSandbox } from "@/mastra/thread-workspace";
 
-export const runtime = "nodejs";
-
 /**
  * Serves background process output recorded by the agent's sandbox; `after` is
  * the last seen seq.

@@ -73,7 +73,10 @@ function QuestionnaireDescription({
 }: React.ComponentProps<typeof QuestionnairePrimitive.Description>) {
   return (
     <QuestionnairePrimitive.Description
-      className={cn("text-pretty text-muted-foreground text-sm", className)}
+      className={cn(
+        "text-pretty text-base text-muted-foreground sm:text-sm",
+        className
+      )}
       data-slot="questionnaire-description"
       {...props}
     />
@@ -104,7 +107,7 @@ function QuestionnaireChoice({
   return (
     <QuestionnairePrimitive.Choice
       className={cn(
-        "group/questionnaire-choice relative flex min-h-11 cursor-pointer select-none items-start gap-2.5 rounded-lg border border-input bg-transparent px-3 py-2.5 text-start text-sm outline-none transition-colors hover:bg-muted/50 has-[>input:focus-visible]:border-ring has-[>input:focus-visible]:ring-3 has-[>input:focus-visible]:ring-ring/50 data-checked:border-primary/40 data-invalid:border-destructive data-checked:bg-muted dark:bg-input/20 dark:data-checked:bg-muted",
+        "group/questionnaire-choice relative flex min-h-12 pointer-fine:min-h-11 cursor-pointer select-none items-start gap-2.5 rounded-lg border border-input bg-transparent px-3 py-2.5 text-start text-base outline-none hover:bg-muted/50 has-[>input:focus-visible]:border-ring has-[>input:focus-visible]:ring-3 has-[>input:focus-visible]:ring-ring/50 data-checked:border-primary/40 data-invalid:border-destructive data-checked:bg-muted sm:text-sm dark:bg-input/20 dark:data-checked:bg-muted",
         "data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className
       )}
@@ -167,7 +170,7 @@ function QuestionnaireInput({
     >
       <QuestionnairePrimitive.Input
         className={cn(
-          "h-8 min-h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none transition-[color,box-shadow,background-color] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 sm:min-h-0 md:text-sm dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 dark:disabled:bg-input/80",
+          "h-8 min-h-12 pointer-fine:min-h-0 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 dark:disabled:bg-input/80",
           "selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground",
           className
         )}
@@ -219,7 +222,7 @@ function QuestionnairePrevious({
     <QuestionnairePrimitive.Previous
       className={cn(
         buttonVariants({ size, variant }),
-        "col-start-1 row-start-1 min-h-11 justify-self-start sm:min-h-0",
+        "col-start-1 row-start-1 min-h-12 pointer-fine:min-h-0 justify-self-start",
         className
       )}
       data-size={size}
@@ -244,7 +247,7 @@ function QuestionnaireSkip({
     <QuestionnairePrimitive.Skip
       className={cn(
         buttonVariants({ size, variant }),
-        "col-start-2 row-start-1 min-h-11 justify-self-end sm:min-h-0",
+        "col-start-2 row-start-1 min-h-12 pointer-fine:min-h-0 justify-self-end",
         className
       )}
       data-size={size}
@@ -269,7 +272,7 @@ function QuestionnaireNext({
     <QuestionnairePrimitive.Next
       className={cn(
         buttonVariants({ size, variant }),
-        "col-start-3 row-start-1 min-h-11 justify-self-end sm:min-h-0",
+        "col-start-3 row-start-1 min-h-12 pointer-fine:min-h-0 justify-self-end",
         className
       )}
       data-size={size}
@@ -294,7 +297,7 @@ function QuestionnaireSubmit({
     <QuestionnairePrimitive.Submit
       className={cn(
         buttonVariants({ size, variant }),
-        "col-start-3 row-start-1 min-h-11 justify-self-end sm:min-h-0",
+        "col-start-3 row-start-1 min-h-12 pointer-fine:min-h-0 justify-self-end",
         className
       )}
       data-size={size}

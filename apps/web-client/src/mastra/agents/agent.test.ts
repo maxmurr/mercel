@@ -138,6 +138,7 @@ it("merges Exa MCP tools with the built-in tools", async () => {
   const tools = await mastra.getAgentById("agent").listTools();
 
   expect(Object.keys(tools)).toEqual([
+    "ask_user",
     "web_fetch",
     "exa_web_search_exa",
     "open_preview",

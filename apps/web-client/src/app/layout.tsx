@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
+export const instant = true;
+
 export const metadata: Metadata = {
   description: "Describe the app you want and watch an agent build it.",
   title: "Mercel",

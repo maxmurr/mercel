@@ -2,8 +2,6 @@ import { threadAccess } from "@/features/chat/chat-thread-access";
 import { resumableRunId } from "@/features/chat/chat-thread-run";
 import { mastra } from "@/mastra";
 
-export const runtime = "nodejs";
-
 /**
  * Chunk types that close a turn: the run finished, failed, was stopped, or
  * suspended waiting for the user to answer a tool approval. The subscription

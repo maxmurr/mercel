@@ -1,10 +1,13 @@
 import { MessageList } from "@mastra/core/agent";
 import { createNextRouteHandler } from "@mastra/next";
 import type { UIMessage } from "ai";
+import { z } from "zod";
+import {
+  parseQuestionnaireAnswers,
+  questionnaireInputSchema,
+} from "@/features/chat/chat-questionnaire";
 import { threadAccess } from "@/features/chat/chat-thread-access";
 import { mastra } from "@/mastra";
-
-export const runtime = "nodejs";
 
 const handlers = createNextRouteHandler({ mastra, prefix: "/api/mastra" });
 
@@ -55,6 +58,58 @@ async function saveTurnInput({
   });
 }
 
+const resumeRequestSchema = z.object({
+  memory: z.object({ thread: z.string().min(1) }),
+  resumeData: z.unknown(),
+  runId: z.string().min(1),
+  toolCallId: z.string().min(1),
+});
+
+/** Binds resume data to a suspended call owned by the session before Mastra can execute it. */
+async function authorizeResume(body: unknown, userId: string) {
+  const parsed = resumeRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json(
+      { error: "Invalid questionnaire resume request" },
+      { status: 400 }
+    );
+  }
+  const { data } = parsed;
+  const { runs } = await mastra.getAgentById("agent").listSuspendedRuns({
+    resourceId: userId,
+    threadId: data.memory.thread,
+  });
+  const tool = runs
+    .find((run) => run.runId === data.runId)
+    ?.toolCalls.find((call) => call.toolCallId === data.toolCallId);
+  if (!tool || tool.requiresApproval) {
+    return Response.json(
+      { error: "Suspended tool call not found" },
+      { status: 409 }
+    );
+  }
+  if (tool.toolName === "ask_user") {
+    try {
+      data.resumeData = parseQuestionnaireAnswers(
+        questionnaireInputSchema.parse(tool.suspendPayload),
+        data.resumeData
+      );
+    } catch {
+      return Response.json(
+        { error: "Invalid questionnaire answers" },
+        { status: 400 }
+      );
+    }
+  }
+  return {
+    ...data,
+    requestContext: {
+      opencodeSessionId: data.memory.thread,
+      threadId: data.memory.thread,
+    },
+  };
+}
+
 /**
  * Answers for the signed-in account rather than for whoever the request names.
  *
@@ -75,11 +130,23 @@ async function authorize(request: Request): Promise<Request | Response> {
     return visitor instanceof Response ? visitor : request;
   }
 
-  const body: unknown = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON request" }, { status: 400 });
+  }
   const memory = memoryOf(body);
   const access = await threadAccess(request, memory?.thread);
   if (access instanceof Response) {
     return access;
+  }
+
+  if (new URL(request.url).pathname.endsWith("/resume-stream")) {
+    body = await authorizeResume(body, access.userId);
+    if (body instanceof Response) {
+      return body;
+    }
   }
 
   const { messages } = body as AgentRequestBody;

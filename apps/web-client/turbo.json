@@ -5,6 +5,9 @@
       "inputs": ["$TURBO_EXTENDS$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
+    "build:e2e": { "cache": false, "dependsOn": ["^build"] },
+    "start:e2e": { "cache": false, "persistent": true },
+    "test:e2e": { "cache": false, "dependsOn": ["build:e2e"] },
     "typecheck": {
       "outputs": [".next/types/**", "next-env.d.ts", "tsconfig.tsbuildinfo"]
     },

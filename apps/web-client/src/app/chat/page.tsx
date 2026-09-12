@@ -30,6 +30,7 @@ export default function ChatPage() {
       </ThreadSidebar>
       <SidebarInset
         className="inset-safe min-h-dvh"
+        data-testid="chat-shell"
         id={mainContentId}
         tabIndex={-1}
       >

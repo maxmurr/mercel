@@ -3,8 +3,6 @@ import { startDeployment } from "@/features/workspace/workspace-deployment";
 import { mastra } from "@/mastra";
 import { archiveThreadWorkspace } from "@/mastra/thread-workspace";
 
-export const runtime = "nodejs";
-
 /**
  * Publishes one thread's sandbox: archives it here, where the files are, and
  * hands the archive to the upload server, which builds and hosts it.

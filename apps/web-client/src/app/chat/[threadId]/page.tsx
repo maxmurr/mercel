@@ -44,6 +44,7 @@ export default function ChatThreadPage({
       </ThreadSidebar>
       <SidebarInset
         className="inset-safe min-h-0 overflow-hidden"
+        data-testid="chat-thread-shell"
         id={mainContentId}
         tabIndex={-1}
       >

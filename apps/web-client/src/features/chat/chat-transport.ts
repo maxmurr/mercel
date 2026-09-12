@@ -6,6 +6,11 @@ import {
   type UIMessageChunk,
 } from "ai";
 import { z } from "zod";
+import {
+  isQuestionnairePart,
+  parseQuestionnaireAnswers,
+  questionnaireInputSchema,
+} from "@/features/chat/chat-questionnaire";
 
 const mastraChunkSchema = z.object({
   data: z.unknown().optional(),
@@ -26,6 +31,7 @@ const toolPayloadSchema = z.object({
   error: z.unknown().optional(),
   isError: z.boolean().default(false),
   result: z.unknown().optional(),
+  suspendPayload: z.unknown().optional(),
   toolCallId: z.string(),
   toolName: z.string().default(""),
 });
@@ -48,6 +54,19 @@ export function toolApprovalRequest(messages: UIMessage[]) {
     const separatorIndex = part.approval.id.indexOf(approvalIdSeparator);
     if (separatorIndex === -1) {
       continue;
+    }
+    if (isQuestionnairePart(part) && part.approval.approved) {
+      return {
+        body: {
+          resumeData: parseQuestionnaireAnswers(
+            questionnaireInputSchema.parse(part.input),
+            JSON.parse(part.approval.reason ?? "null")
+          ),
+          runId: part.approval.id.slice(0, separatorIndex),
+          toolCallId: part.toolCallId,
+        },
+        route: "resume-stream",
+      };
     }
     return {
       body: {
@@ -121,6 +140,24 @@ function toolChunks(
           toolCallId,
           toolName,
           type: "tool-input-available",
+        },
+      ];
+    case "tool-call-suspended":
+      if (toolName !== "ask_user" || !runId) {
+        return [];
+      }
+      // AI SDK has no suspended tool state; its approval slot carries the run identity until answers resume it.
+      return [
+        {
+          input: toolInput(tool.suspendPayload ?? tool.args),
+          toolCallId,
+          toolName,
+          type: "tool-input-available",
+        },
+        {
+          approvalId: `${runId}${approvalIdSeparator}${toolCallId}`,
+          toolCallId,
+          type: "tool-approval-request",
         },
       ];
     case "tool-call-approval":
@@ -262,7 +299,13 @@ export function createChatTransport(resourceId: string) {
       if (approval) {
         return {
           api: `${agentApi}/${approval.route}`,
-          body: { ...approval.body, requestContext },
+          body: {
+            ...approval.body,
+            ...(approval.route === "resume-stream"
+              ? { memory: { resource: resourceId, thread: id } }
+              : {}),
+            requestContext,
+          },
         };
       }
       return {

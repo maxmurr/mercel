@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "build": "next build",
+    "build:e2e": "INSTANT_NAV_TEST=1 next build",
     "check": "bun --bun ultracite check .",
     "db:reset": "bun --bun -e 'const { mastra } = await import(\"./src/mastra/index.ts\"); await mastra.getStorage().init(); process.exit(0)'",
     "dev": "next dev --port ${PORT:-3002}",
     "dev:mastra": "mastra dev",
     "fix": "bun --bun ultracite fix .",
     "start": "next start --port ${PORT:-3002}",
+    "start:e2e": "INSTANT_NAV_TEST=1 next start --port 3012",
     "test": "bun --bun vitest run",
+    "test:e2e": "playwright test",
     "typecheck": "next typegen && bun --bun tsc --noEmit"
   },
   "dependencies": {
@@ -57,6 +60,8 @@
     "zustand": "^5"
   },
   "devDependencies": {
+    "@next/playwright": "16.3.4",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^26.5.0",
     "@types/react": "^19",

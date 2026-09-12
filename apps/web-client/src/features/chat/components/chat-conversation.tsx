@@ -7,12 +7,15 @@ import {
 } from "@ai-sdk-tools/store";
 import {
   type ChatAddToolApproveResponseFunction,
+  type DynamicToolUIPart,
   isToolUIPart,
+  type ToolUIPart,
   type UIMessage,
 } from "ai";
 import { MessageSquareIcon } from "lucide-react";
 import { createContext, useContext } from "react";
 import { Streamdown } from "streamdown";
+import { QuestionnairePart } from "@/components/ai-elements/questionnaire-part";
 import { Reasoning } from "@/components/ai-elements/reasoning";
 import { isHiddenToolPart, ToolPart } from "@/components/ai-elements/tool";
 import {
@@ -31,6 +34,7 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
 import { Spinner } from "@/components/ui/spinner";
+import { isQuestionnairePart } from "@/features/chat/chat-questionnaire";
 
 const streamdownClassName =
   "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
@@ -39,26 +43,46 @@ const streamdownClassName =
 export const ToolApprovalContext =
   createContext<ChatAddToolApproveResponseFunction | null>(null);
 
+function AssistantToolPart({
+  canRespondToTools,
+  part,
+}: {
+  canRespondToTools: boolean;
+  part: ToolUIPart | DynamicToolUIPart;
+}) {
+  const respondToApproval = useContext(ToolApprovalContext);
+  if (isHiddenToolPart(part)) {
+    return null;
+  }
+  if (isQuestionnairePart(part)) {
+    return (
+      <QuestionnairePart
+        onApprovalResponse={
+          canRespondToTools ? (respondToApproval ?? undefined) : undefined
+        }
+        part={part}
+      />
+    );
+  }
+  return isWebSearchPart(part) ? (
+    <WebSearchPart part={part} />
+  ) : (
+    <ToolPart onApprovalResponse={respondToApproval ?? undefined} part={part} />
+  );
+}
+
 function AssistantPart({
+  canRespondToTools,
   isStreaming,
   part,
 }: {
+  canRespondToTools: boolean;
   isStreaming: boolean;
   part: UIMessage["parts"][number];
 }) {
-  const respondToApproval = useContext(ToolApprovalContext);
-
   if (isToolUIPart(part)) {
-    if (isHiddenToolPart(part)) {
-      return null;
-    }
-    return isWebSearchPart(part) ? (
-      <WebSearchPart part={part} />
-    ) : (
-      <ToolPart
-        onApprovalResponse={respondToApproval ?? undefined}
-        part={part}
-      />
+    return (
+      <AssistantToolPart canRespondToTools={canRespondToTools} part={part} />
     );
   }
   if (part.type !== "text" && part.type !== "reasoning") {
@@ -100,6 +124,9 @@ function ChatMessageItem({ messageId }: { messageId: string }) {
     (state) =>
       state.status === "streaming" && state.getLastMessageId() === messageId
   );
+  const canRespondToTools = useChatStore(
+    (state) => state.getLastMessageId() === messageId
+  );
   const isUser = message.role === "user";
 
   if (!message.parts.some(hasVisibleContent)) {
@@ -125,6 +152,7 @@ function ChatMessageItem({ messageId }: { messageId: string }) {
           ) : (
             message.parts.map((part, index) => (
               <AssistantPart
+                canRespondToTools={canRespondToTools}
                 isStreaming={isStreaming && index === message.parts.length - 1}
                 key={isToolUIPart(part) ? part.toolCallId : index}
                 part={part}

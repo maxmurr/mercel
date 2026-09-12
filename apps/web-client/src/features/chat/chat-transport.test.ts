@@ -183,3 +183,88 @@ it("sends only the newest message with the thread and its owner", async () => {
 
   vi.unstubAllGlobals();
 });
+
+it("turns ask_user suspension into a questionnaire and routes answers to resume-stream", async () => {
+  const input = {
+    questions: [
+      {
+        id: "notes",
+        label: "Notes",
+        question: "Any constraints?",
+        required: false,
+        type: "text",
+      },
+    ],
+    submitLabel: "Send answers",
+  };
+  const chunks = await sendAndCollect([
+    {
+      payload: {
+        suspendPayload: input,
+        toolCallId: "ask-1",
+        toolName: "ask_user",
+      },
+      runId: "run-1",
+      type: "tool-call-suspended",
+    },
+  ]);
+  expect(chunks).toEqual(
+    expect.arrayContaining([
+      {
+        input,
+        toolCallId: "ask-1",
+        toolName: "ask_user",
+        type: "tool-input-available",
+      },
+      {
+        approvalId: "run-1::ask-1",
+        toolCallId: "ask-1",
+        type: "tool-approval-request",
+      },
+    ])
+  );
+  const resumeData = { answers: { notes: "EU data residency" } };
+  const fetchMock = vi.fn<typeof fetch>(() =>
+    Promise.resolve(mastraResponse([{ type: "finish" }]))
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  try {
+    await createChatTransport("owner-1").sendMessages({
+      abortSignal: undefined,
+      chatId: "thread-1",
+      messageId: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              approval: {
+                approved: true,
+                id: "run-1::ask-1",
+                reason: JSON.stringify(resumeData),
+              },
+              input,
+              state: "approval-responded",
+              toolCallId: "ask-1",
+              toolName: "ask_user",
+              type: "dynamic-tool",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      trigger: "submit-message",
+    });
+    const [call] = fetchMock.mock.calls;
+    expect(call?.[0]).toBe("/api/mastra/agents/agent/resume-stream");
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+      memory: { resource: "owner-1", thread: "thread-1" },
+      requestContext: { opencodeSessionId: "thread-1", threadId: "thread-1" },
+      resumeData,
+      runId: "run-1",
+      toolCallId: "ask-1",
+    });
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

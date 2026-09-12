@@ -1,8 +1,6 @@
 import { threadAccess } from "@/features/chat/chat-thread-access";
 import { zipThreadWorkspace } from "@/mastra/thread-workspace";
 
-export const runtime = "nodejs";
-
 /**
  * Sends one thread's sandbox to the browser as a zip download.
  *
