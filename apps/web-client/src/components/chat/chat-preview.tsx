@@ -10,13 +10,7 @@ import {
   WebPreviewUrl,
 } from "@/components/ai-elements/web-preview";
 import { SandboxConsole } from "@/components/chat/sandbox-console";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 
 interface ChatPreviewProps {
@@ -63,17 +57,11 @@ export function ChatPreview({ className, title, url }: ChatPreviewProps) {
           title={title}
         />
       ) : (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <MonitorIcon />
-            </EmptyMedia>
-            <EmptyTitle>No preview yet</EmptyTitle>
-            <EmptyDescription>
-              Ask the agent to build something and it will show up here.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyState
+          description="Ask the agent to build something and it will show up here."
+          icon={<MonitorIcon />}
+          title="No preview yet"
+        />
       )}
       <SandboxConsole />
     </WebPreview>

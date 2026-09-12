@@ -14,14 +14,8 @@ import {
   isWebSearchPart,
   WebSearchPart,
 } from "@/components/ai-elements/web-search";
+import { EmptyState } from "@/components/empty-state";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { Message, MessageContent } from "@/components/ui/message";
 import {
   MessageScroller,
@@ -175,17 +169,11 @@ export function ChatConversation({ className }: { className?: string }) {
           >
             {messageIds.length === 0 ? (
               <MessageScrollerItem messageId="empty">
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessageSquareIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>What can we build together?</EmptyTitle>
-                    <EmptyDescription>
-                      Ask a question or describe what you'd like to build.
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
+                <EmptyState
+                  description="Ask a question or describe what you'd like to build."
+                  icon={<MessageSquareIcon />}
+                  title="What can we build together?"
+                />
               </MessageScrollerItem>
             ) : (
               messageIds.map((messageId) => (
