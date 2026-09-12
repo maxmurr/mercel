@@ -102,7 +102,11 @@ it.each([undefined, "86d8bb97-5293-47c7-9c19-1b53bbf6b17d"])(
 it("merges Exa MCP tools with the built-in tools", async () => {
   const tools = await mastra.getAgentById("agent").listTools();
 
-  expect(Object.keys(tools)).toEqual(["web_fetch", "exa_web_search_exa"]);
+  expect(Object.keys(tools)).toEqual([
+    "web_fetch",
+    "exa_web_search_exa",
+    "open_preview",
+  ]);
 });
 
 it("rejects invalid routing session IDs before calling the provider", async () => {

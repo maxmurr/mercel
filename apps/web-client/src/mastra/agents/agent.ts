@@ -9,7 +9,10 @@ import {
   Workspace,
 } from "@mastra/core/workspace";
 import { z } from "zod";
+import { recordProcessLog } from "../../lib/process-log";
 import { exa } from "../tools/exa";
+import { openPreviewTool } from "../tools/preview";
+import instructions from "./instructions.md";
 
 /** Shared root for file tools and shell commands, resolved from process.cwd(). */
 const workspaceDir = ".sandbox";
@@ -17,13 +20,17 @@ const workspaceDir = ".sandbox";
 /** Agent Skills (`SKILL.md` dirs), resolved from process.cwd() like workspaceDir. */
 const skillsDir = "src/mastra/skills";
 
+/** Writing files, installing, starting the server, and previewing takes many tool rounds. */
+const maxSteps = 40;
+
 /** Reuse request context across turns to keep the OpenCode routing session stable. */
 export const agent = new Agent({
   defaultOptions: {
     experimentalTransform: () => smoothStream({ delayInMs: 20 }),
+    maxSteps,
   },
   id: "agent",
-  instructions: "You are a helpful assistant. Give clear, concise answers.",
+  instructions,
   model: ({ requestContext }) => {
     const sessionId = requestContext.get("opencodeSessionId") ?? randomUUID();
     requestContext.set("opencodeSessionId", sessionId);
@@ -44,6 +51,7 @@ export const agent = new Agent({
   tools: async () => ({
     web_fetch: webFetchTool,
     ...(await exa.listTools()),
+    open_preview: openPreviewTool,
   }),
   workspace: new Workspace({
     bm25: true,
@@ -75,13 +83,20 @@ export const agent = new Agent({
       [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: {
         requireApproval: true,
       },
-      // Stream dev server output
+      // Dev servers must outlive the chat request that started them; their output is polled by the console.
       [WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND]: {
         backgroundProcesses: {
+          abortSignal: false,
           onExit: ({ pid, exitCode }) =>
-            console.log(`Process ${pid} exited: ${exitCode}`),
-          onStderr: (data, { pid }) => console.error(`[${pid}] ${data}`),
-          onStdout: (data, { pid }) => console.log(`[${pid}] ${data}`),
+            recordProcessLog({
+              pid,
+              stream: "exit",
+              text: `exited with code ${exitCode}`,
+            }),
+          onStderr: (data, { pid }) =>
+            recordProcessLog({ pid, stream: "stderr", text: data }),
+          onStdout: (data, { pid }) =>
+            recordProcessLog({ pid, stream: "stdout", text: data }),
         },
       },
     },

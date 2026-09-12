@@ -13,6 +13,7 @@
       "!!**/.turbo",
       "!!**/.next",
       "!!**/.mastra",
+      "!!**/.sandbox",
       "!!**/out",
       "!!**/next-env.d.ts"
     ]

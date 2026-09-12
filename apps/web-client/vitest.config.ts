@@ -2,6 +2,17 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  plugins: [
+    // Match Next's raw-loader rule so agent instructions import as a string.
+    {
+      name: "markdown-raw",
+      transform(code, id) {
+        if (id.endsWith(".md")) {
+          return `export default ${JSON.stringify(code)};`;
+        }
+      },
+    },
+  ],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

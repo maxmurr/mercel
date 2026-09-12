@@ -114,7 +114,7 @@ AI SDK data parts. `useChat` `onData` routes them into
 `src/lib/sandbox-store.ts`: `data-preview` sets the iframe URL on the Preview
 tab, and `data-sandbox-stdout/stderr/exit` from foreground commands feed the
 Console drawer. Background processes only report to the server, so
-`src/mastra/tools/process-log.ts` keeps their last 1000 lines and serves them at
+`src/lib/process-log.ts` keeps their last 1000 lines and serves them at
 `GET /api/sandbox/logs?after=<seq>` (`src/app/api/sandbox/logs/route.ts`); `SandboxConsole` polls it every two
 seconds while the console is open or a preview exists. The Code tab refetches
 folders and the open file every two seconds while visible.
