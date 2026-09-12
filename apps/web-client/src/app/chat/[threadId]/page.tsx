@@ -6,7 +6,7 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import { type Layout, usePanelRef } from "react-resizable-panels";
 import { WebPreviewNavigationButton } from "@/components/ai-elements/web-preview";
@@ -31,17 +31,11 @@ const chatResizablePanelId = "chat-resizable-panel";
 /** Chats with the registered Mastra agent; the thread ID in the URL owns the conversation. */
 export default function ChatThreadPage() {
   const { threadId } = useParams<{ threadId: string }>();
-  const router = useRouter();
   const [mobilePanel, setMobilePanel] = useState("chat");
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const chatPanelRef = usePanelRef();
   const isMobileLayout = useIsMobile(1024);
   const preview = useSandboxStore((state) => state.preview);
-
-  // Next remounts the page for the new segment, so local state resets on its own.
-  function handleNewChat() {
-    router.push(`/chat/${crypto.randomUUID()}`);
-  }
 
   function handlePanelToggle() {
     setMobilePanel((panel) => (panel === "chat" ? "preview" : "chat"));
@@ -62,7 +56,7 @@ export default function ChatThreadPage() {
 
   return (
     <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground antialiased">
-      <ChatHeader onNewChat={handleNewChat} title="Chat with Agent" />
+      <ChatHeader title="Chat with Agent" />
       <Separator />
       <div className="flex shrink-0 items-center justify-end gap-3 px-4 py-2 sm:px-6 lg:hidden">
         <Button

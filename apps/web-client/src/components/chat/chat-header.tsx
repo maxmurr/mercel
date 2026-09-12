@@ -9,12 +9,11 @@ import { cn } from "@/lib/utils";
 
 interface ChatHeaderProps {
   className?: string;
-  onNewChat: () => void;
   title: string;
 }
 
-/** Shows the chat title and delegates conversation reset to the page. */
-export function ChatHeader({ className, onNewChat, title }: ChatHeaderProps) {
+/** Shows the chat title; "New chat" returns to the launcher at /chat. */
+export function ChatHeader({ className, title }: ChatHeaderProps) {
   return (
     <header
       className={cn(
@@ -40,7 +39,8 @@ export function ChatHeader({ className, onNewChat, title }: ChatHeaderProps) {
         <Button
           aria-label="New chat"
           className="h-10 max-sm:w-10"
-          onClick={onNewChat}
+          nativeButton={false}
+          render={<Link href="/chat" />}
           variant="outline"
         >
           <PlusIcon data-icon="inline-start" />

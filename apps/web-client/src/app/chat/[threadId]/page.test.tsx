@@ -13,13 +13,9 @@ import ChatThreadPage from "./page";
 
 const initialThreadId = "11111111-1111-4111-8111-111111111111";
 let threadId = initialThreadId;
-const push = vi.fn((href: string) => {
-  threadId = href.slice("/chat/".length);
-});
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ threadId }),
-  useRouter: () => ({ push }),
 }));
 vi.mock("@/components/chat/chat-composer", { spy: true });
 vi.mock("@/components/chat/chat-conversation", { spy: true });
@@ -44,7 +40,6 @@ vi.mock("streamdown", async (importOriginal) => {
 let container: HTMLDivElement;
 let root: Root;
 const fetchMock = vi.fn<typeof fetch>();
-const newChatHrefPattern = /^\/chat\/[0-9a-f-]{36}$/;
 
 function mastraResponse(stream: ReadableStream<unknown>) {
   return new Response(
@@ -156,12 +151,12 @@ async function renderPage() {
   await flushChatUpdates();
 }
 
-// Next remounts the segment for the pushed thread ID, so render again at the new URL.
+// "New chat" links to the launcher, whose next prompt opens a fresh thread; render again at that URL.
 async function startNewChat() {
-  await clickButton("New chat");
-  expect(push).toHaveBeenLastCalledWith(
-    expect.stringMatching(newChatHrefPattern)
-  );
+  expect(
+    container.querySelector('a[aria-label="New chat"]')?.getAttribute("href")
+  ).toBe("/chat");
+  threadId = crypto.randomUUID();
   await renderPage();
 }
 
