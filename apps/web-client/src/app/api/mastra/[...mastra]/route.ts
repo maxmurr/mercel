@@ -1,6 +1,6 @@
 import { MessageList } from "@mastra/core/agent";
 import { createNextRouteHandler } from "@mastra/next";
-import type { UIMessage } from "ai";
+import { safeValidateUIMessages, type UIMessage } from "ai";
 import { z } from "zod";
 import {
   parseQuestionnaireAnswers,
@@ -11,23 +11,21 @@ import { mastra } from "@/mastra";
 
 const handlers = createNextRouteHandler({ mastra, prefix: "/api/mastra" });
 
-interface AgentRequestBody {
-  memory?: { resource?: string; thread?: string };
-  messages?: UIMessage[];
-}
+const chatRoutes = new Set([
+  "/api/mastra/agents/agent/stream",
+  "/api/mastra/agents/agent/resume-stream",
+  "/api/mastra/agents/agent/approve-tool-call",
+  "/api/mastra/agents/agent/decline-tool-call",
+]);
 
-/** The memory options the browser sent, when it sent any. */
-function memoryOf(body: unknown): AgentRequestBody["memory"] {
-  if (typeof body !== "object" || body === null) {
-    return;
-  }
-  const { memory } = body as AgentRequestBody;
-  return typeof memory === "object" && memory !== null ? memory : undefined;
-}
+const chatRequestSchema = z.object({
+  memory: z.object({ thread: z.uuid() }),
+});
+const streamRequestSchema = chatRequestSchema.extend({
+  messages: z.array(z.unknown()).min(1),
+});
 
 /**
- * Stores the messages a turn opens with before its run starts.
- *
  * Mastra writes a turn's messages only once the reply lands, so a chat that
  * reloaded mid-reply would show an empty conversation while a reply to an
  * invisible prompt streamed into it. The run reuses these IDs, so its own save
@@ -43,10 +41,26 @@ async function saveTurnInput({
   resourceId: string;
   threadExists: boolean;
   threadId: string;
-}) {
+}): Promise<Response | undefined> {
   const memory = await mastra.getAgentById("agent").getMemory();
   if (!memory) {
     return;
+  }
+  // Message IDs are global upsert keys, so a valid thread alone does not authorize overwriting them.
+  const storage = await mastra.getStorage()?.getStore("memory");
+  const existing = await storage?.listMessagesById({
+    messageIds: messages.map((message) => message.id),
+  });
+  if (
+    existing?.messages.some(
+      (message) =>
+        message.threadId !== threadId || message.resourceId !== resourceId
+    )
+  ) {
+    return Response.json(
+      { error: "Message belongs to another conversation" },
+      { status: 403 }
+    );
   }
   if (!threadExists) {
     await memory.createThread({ resourceId, threadId });
@@ -58,19 +72,22 @@ async function saveTurnInput({
   });
 }
 
-const resumeRequestSchema = z.object({
-  memory: z.object({ thread: z.string().min(1) }),
-  resumeData: z.unknown(),
+const continuationRequestSchema = chatRequestSchema.extend({
+  reason: z.string().optional(),
+  resumeData: z.unknown().optional(),
   runId: z.string().min(1),
   toolCallId: z.string().min(1),
 });
 
-/** Binds resume data to a suspended call owned by the session before Mastra can execute it. */
-async function authorizeResume(body: unknown, userId: string) {
-  const parsed = resumeRequestSchema.safeParse(body);
+async function authorizeContinuation(
+  body: unknown,
+  userId: string,
+  pathname: string
+) {
+  const parsed = continuationRequestSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json(
-      { error: "Invalid questionnaire resume request" },
+      { error: "Invalid chat continuation request" },
       { status: 400 }
     );
   }
@@ -82,11 +99,24 @@ async function authorizeResume(body: unknown, userId: string) {
   const tool = runs
     .find((run) => run.runId === data.runId)
     ?.toolCalls.find((call) => call.toolCallId === data.toolCallId);
-  if (!tool || tool.requiresApproval) {
+  const isResume = pathname.endsWith("/resume-stream");
+  // Approval-gated calls continue through approve/decline, the rest through resume-stream.
+  const isWrongContinuationRoute = tool?.requiresApproval === isResume;
+  if (!tool || isWrongContinuationRoute) {
     return Response.json(
       { error: "Suspended tool call not found" },
       { status: 409 }
     );
+  }
+  if (!isResume) {
+    return {
+      reason: pathname.endsWith("/decline-tool-call") ? data.reason : undefined,
+      runId: data.runId,
+      toolCallId: data.toolCallId,
+    };
+  }
+  if (data.resumeData === undefined) {
+    return Response.json({ error: "Missing resume data" }, { status: 400 });
   }
   if (tool.toolName === "ask_user") {
     try {
@@ -102,32 +132,34 @@ async function authorizeResume(body: unknown, userId: string) {
     }
   }
   return {
-    ...data,
-    requestContext: {
-      opencodeSessionId: data.memory.thread,
-      threadId: data.memory.thread,
-    },
+    resumeData: data.resumeData,
+    runId: data.runId,
+    toolCallId: data.toolCallId,
   };
 }
 
-/**
- * Answers for the signed-in account rather than for whoever the request names.
- *
- * Mastra's native API reads the owner out of the request body, so a chat
- * request could otherwise append to, and replay, another account's
- * conversation. The session decides the owner here: it replaces the resource
- * the browser sent, and a thread stored under another account is refused.
- *
- * Returns the request to forward, or the response to send instead of forwarding
- * it.
- */
-async function authorize(request: Request): Promise<Request | Response> {
-  const isJsonPost =
-    request.method === "POST" &&
-    (request.headers.get("content-type") ?? "").includes("application/json");
-  if (!isJsonPost) {
-    const visitor = await threadAccess(request);
-    return visitor instanceof Response ? visitor : request;
+async function parseStreamInput(body: unknown) {
+  const stream = streamRequestSchema.safeParse(body);
+  const messages = await safeValidateUIMessages({
+    messages: stream.success ? stream.data.messages : undefined,
+  });
+  if (!messages.success) {
+    return Response.json({ error: "Invalid chat messages" }, { status: 400 });
+  }
+  return { messages: messages.data };
+}
+
+async function parseChatRequest(request: Request, url: URL) {
+  if (request.method !== "POST" || !chatRoutes.has(url.pathname)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+  const contentType = request.headers
+    .get("content-type")
+    ?.split(";")[0]
+    ?.trim()
+    .toLowerCase();
+  if (contentType !== "application/json") {
+    return Response.json({ error: "JSON request required" }, { status: 415 });
   }
 
   let body: unknown;
@@ -136,44 +168,57 @@ async function authorize(request: Request): Promise<Request | Response> {
   } catch {
     return Response.json({ error: "Invalid JSON request" }, { status: 400 });
   }
-  const memory = memoryOf(body);
-  const access = await threadAccess(request, memory?.thread);
+  const parsed = chatRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: "Invalid chat thread" }, { status: 400 });
+  }
+  return { body, threadId: parsed.data.memory.thread };
+}
+
+async function authorize(request: Request): Promise<Request | Response> {
+  const visitor = await threadAccess(request);
+  if (visitor instanceof Response) {
+    return visitor;
+  }
+  const url = new URL(request.url);
+  const chat = await parseChatRequest(request, url);
+  if (chat instanceof Response) {
+    return chat;
+  }
+  const { body, threadId } = chat;
+  const access = await threadAccess(request, threadId);
   if (access instanceof Response) {
     return access;
   }
 
-  if (new URL(request.url).pathname.endsWith("/resume-stream")) {
-    body = await authorizeResume(body, access.userId);
-    if (body instanceof Response) {
-      return body;
+  const input = url.pathname.endsWith("/stream")
+    ? await parseStreamInput(body)
+    : await authorizeContinuation(body, access.userId, url.pathname);
+  if (input instanceof Response) {
+    return input;
+  }
+  if ("messages" in input) {
+    const saved = await saveTurnInput({
+      messages: input.messages,
+      resourceId: access.userId,
+      threadExists: Boolean(access.thread),
+      threadId,
+    });
+    if (saved instanceof Response) {
+      return saved;
     }
   }
 
-  const { messages } = body as AgentRequestBody;
-  if (memory?.thread && messages?.length) {
-    await saveTurnInput({
-      messages,
-      resourceId: access.userId,
-      threadExists: Boolean(access.thread),
-      threadId: memory.thread,
-    });
-  }
-
+  url.search = "";
   const headers = new Headers(request.headers);
   // The rewritten body is a different length, and the original stream is spent.
   headers.delete("content-length");
-  // The forwarded request carries no abort signal: a run outlives the browser
-  // that started it, so a reload resumes the reply at /api/chat/[threadId]/stream
-  // instead of losing it. Stopping a reply goes to that route as well.
-  return new Request(request.url, {
-    body: JSON.stringify(
-      memory
-        ? {
-            ...(body as AgentRequestBody),
-            memory: { ...memory, resource: access.userId },
-          }
-        : body
-    ),
+  return new Request(url, {
+    body: JSON.stringify({
+      ...input,
+      memory: { resource: access.userId, thread: threadId },
+      requestContext: { opencodeSessionId: threadId, threadId },
+    }),
     headers,
     method: "POST",
   });
@@ -188,7 +233,6 @@ function guard(handler: (request: Request) => Response | Promise<Response>) {
   };
 }
 
-/** Mounts Mastra's native API under the Next.js catch-all route, signed in only. */
 export const GET = guard(handlers.GET);
 export const POST = guard(handlers.POST);
 export const PUT = guard(handlers.PUT);

@@ -184,6 +184,51 @@ it("sends only the newest message with the thread and its owner", async () => {
   vi.unstubAllGlobals();
 });
 
+it.each([true, false])(
+  "includes thread identity for tool approval %s",
+  async (approved) => {
+    const fetchMock = vi.fn<typeof fetch>(() =>
+      Promise.resolve(mastraResponse([{ type: "finish" }]))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await createChatTransport("user-1").sendMessages({
+        abortSignal: undefined,
+        chatId: "thread-1",
+        messageId: undefined,
+        messages: [
+          {
+            id: "assistant-1",
+            parts: [
+              {
+                approval: { approved, id: "run-1::call-1" },
+                input: { path: "src/App.css" },
+                state: "approval-responded",
+                toolCallId: "call-1",
+                toolName: "mastra_workspace_delete",
+                type: "dynamic-tool",
+              },
+            ],
+            role: "assistant",
+          },
+        ],
+        trigger: "submit-message",
+      });
+      const [call] = fetchMock.mock.calls;
+      expect(call?.[0]).toBe(
+        `/api/mastra/agents/agent/${approved ? "approve-tool-call" : "decline-tool-call"}`
+      );
+      expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({
+        memory: { resource: "user-1", thread: "thread-1" },
+        runId: "run-1",
+        toolCallId: "call-1",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }
+);
+
 it("turns ask_user suspension into a questionnaire and routes answers to resume-stream", async () => {
   const input = {
     questions: [

@@ -2,7 +2,6 @@
 
 import { RequestContext } from "@mastra/core/request-context";
 import { afterEach, expect, it, vi } from "vitest";
-import { POST } from "../../app/api/mastra/[...mastra]/route";
 import { mastra } from "../index";
 import { designBrief } from "../processors/design-brief";
 
@@ -48,15 +47,8 @@ it("sends OpenCode Go session and client headers on the actual model request", a
     .mockResolvedValue(Response.json(completionResponse));
   vi.stubGlobal("fetch", fetchMock);
 
-  const response = await POST(
-    new Request("http://localhost:3002/api/mastra/agents/agent/generate", {
-      body: JSON.stringify({ messages: [{ content: "Hello", role: "user" }] }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    })
-  );
-  expect(response.status).toBe(200);
-  expect(await response.json()).toMatchObject({ text: "Hello!" });
+  const response = await mastra.getAgentById("agent").generate("Hello");
+  expect(response.text).toBe("Hello!");
   expect(fetchMock).toHaveBeenCalledTimes(1);
   const [call] = fetchMock.mock.calls;
   expect(call).toBeDefined();

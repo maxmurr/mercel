@@ -301,9 +301,7 @@ export function createChatTransport(resourceId: string) {
           api: `${agentApi}/${approval.route}`,
           body: {
             ...approval.body,
-            ...(approval.route === "resume-stream"
-              ? { memory: { resource: resourceId, thread: id } }
-              : {}),
+            memory: { resource: resourceId, thread: id },
             requestContext,
           },
         };

@@ -78,7 +78,7 @@ async function startTurn(threadId: string) {
         memory: { resource: signedInUserId, thread: threadId },
         messages: [
           {
-            id: "user-1",
+            id: crypto.randomUUID(),
             parts: [{ text: "Hello", type: "text" }],
             role: "user",
           },
@@ -89,6 +89,7 @@ async function startTurn(threadId: string) {
       signal: browser.signal,
     })
   );
+  expect(response.status).toBe(200);
   return { browser, providerRequest: started.promise, reply, response };
 }
 

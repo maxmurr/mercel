@@ -1,12 +1,15 @@
 // @vitest-environment node
 
+import { createTool } from "@mastra/core/tools";
 import { afterEach, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/mastra/[...mastra]/route";
 import { getChatThread } from "@/features/chat/chat-queries";
 import {
   parseQuestionnaireAnswers,
   questionnaireInputSchema,
+  questionnaireOutputSchema,
 } from "@/features/chat/chat-questionnaire";
+import { mastra } from "@/mastra";
 
 let userId: string | undefined = "questionnaire-owner";
 vi.mock("@/features/user/user-auth", () => ({
@@ -20,6 +23,7 @@ vi.mock("@/features/user/user-auth", () => ({
 
 afterEach(() => {
   userId = "questionnaire-owner";
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
@@ -188,6 +192,8 @@ it("suspends, reloads the form, validates ownership, resumes, and reloads confir
       )
     ).status
   ).toBe(400);
+  expect((await POST(request("approve-tool-call", body))).status).toBe(409);
+  expect((await POST(request("decline-tool-call", body))).status).toBe(409);
   const resumed = await POST(request("resume-stream", body));
   expect(resumed.status).toBe(200);
   const resumedText = await resumed.text();
@@ -209,3 +215,99 @@ it("suspends, reloads the form, validates ownership, resumes, and reloads confir
   );
   expect((await POST(request("resume-stream", body))).status).toBe(409);
 }, 20_000);
+
+it.each(["approve-tool-call", "decline-tool-call"])(
+  "checks session, thread, run, and tool ownership before %s",
+  async (route) => {
+    const agent = mastra.getAgentById("agent");
+    const execute = vi.fn(() => Promise.resolve(output));
+    const tools = await agent.listTools();
+    vi.spyOn(agent, "listTools").mockResolvedValue({
+      ...tools,
+      ask_user: createTool({
+        description: "Approval test tool",
+        execute,
+        id: "ask_user",
+        inputSchema: questionnaireInputSchema,
+        outputSchema: questionnaireOutputSchema,
+        requireApproval: true,
+        resumeSchema: questionnaireOutputSchema,
+        suspendSchema: questionnaireInputSchema,
+      }),
+    });
+    vi.stubEnv("OPENCODE_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(providerResponse(true))
+        .mockImplementation(() => Promise.resolve(providerResponse(false)))
+    );
+    const threadId = crypto.randomUUID();
+    await (await agent.getMemory())?.createThread({
+      resourceId: "questionnaire-owner",
+      threadId,
+      title: "Approval test",
+    });
+    const memory = { thread: threadId };
+    const started = await POST(
+      request("stream", {
+        memory,
+        messages: [
+          {
+            id: crypto.randomUUID(),
+            parts: [{ text: "Ask me first", type: "text" }],
+            role: "user",
+          },
+        ],
+      })
+    );
+    expect(await started.text()).toContain("tool-call-approval");
+    const { runs } = await agent.listSuspendedRuns({
+      resourceId: "questionnaire-owner",
+      threadId,
+    });
+    const [run] = runs;
+    const toolCallId = run?.toolCalls[0]?.toolCallId;
+    if (!(run && toolCallId)) {
+      throw new Error("Approval fixture missing");
+    }
+    const body = { memory, runId: run.runId, toolCallId };
+    userId = undefined;
+    expect((await POST(request(route, body))).status).toBe(401);
+    userId = "another-account";
+    expect((await POST(request(route, body))).status).toBe(403);
+    userId = "questionnaire-owner";
+    expect(
+      (
+        await POST(
+          request(route, { ...body, memory: { thread: crypto.randomUUID() } })
+        )
+      ).status
+    ).toBe(409);
+    expect(
+      (await POST(request(route, { ...body, toolCallId: "other-call" }))).status
+    ).toBe(409);
+    expect(
+      (await POST(request(route, { ...body, runId: "other-run" }))).status
+    ).toBe(409);
+    expect(
+      (await POST(request(route, { ...body, memory: undefined }))).status
+    ).toBe(400);
+    expect(
+      (await POST(request("resume-stream", { ...body, resumeData: output })))
+        .status
+    ).toBe(409);
+    expect(execute).not.toHaveBeenCalled();
+
+    const continued = await POST(
+      request(route, { ...body, reason: "Keep it" })
+    );
+    expect(continued.status).toBe(200);
+    await continued.text();
+    expect(execute).toHaveBeenCalledTimes(
+      route === "approve-tool-call" ? 1 : 0
+    );
+    expect((await POST(request(route, body))).status).toBe(409);
+  }
+);
