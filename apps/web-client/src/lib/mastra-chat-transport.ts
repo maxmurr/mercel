@@ -237,3 +237,36 @@ export class MastraChatTransport extends HttpChatTransport<UIMessage> {
     );
   }
 }
+
+const agentApi = "/api/mastra/agents/agent";
+
+/**
+ * Builds the chat transport for one thread's owner.
+ *
+ * Mastra reloads the thread from storage on every turn, so only the newest
+ * message travels with the request; sending the whole history would duplicate
+ * it and fight the stored timestamps.
+ */
+export function createChatTransport(resourceId: string) {
+  return new MastraChatTransport({
+    api: `${agentApi}/stream`,
+    prepareSendMessagesRequest: ({ id, messages }) => {
+      const requestContext = { opencodeSessionId: id };
+      // An answered approval resumes the suspended run instead of starting a new turn.
+      const approval = toolApprovalRequest(messages);
+      if (approval) {
+        return {
+          api: `${agentApi}/${approval.route}`,
+          body: { ...approval.body, requestContext },
+        };
+      }
+      return {
+        body: {
+          memory: { resource: resourceId, thread: id },
+          messages: messages.slice(-1),
+          requestContext,
+        },
+      };
+    },
+  });
+}

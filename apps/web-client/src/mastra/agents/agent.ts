@@ -8,6 +8,7 @@ import {
   WORKSPACE_TOOLS,
   Workspace,
 } from "@mastra/core/workspace";
+import { Memory } from "@mastra/memory";
 import { z } from "zod";
 import { recordProcessLog } from "../../lib/process-log";
 import { designBriefProcessor } from "../processors/design-brief";
@@ -24,6 +25,9 @@ const skillsDir = "src/mastra/skills";
 /** Writing files, installing, starting the server, and previewing takes many tool rounds. */
 const maxSteps = 40;
 
+/** Turns replayed into the model's context; the UI still reloads the whole thread. */
+const lastMessages = 20;
+
 /** Reuse request context across turns to keep the OpenCode routing session stable. */
 export const agent = new Agent({
   defaultOptions: {
@@ -33,6 +37,8 @@ export const agent = new Agent({
   id: "agent",
   inputProcessors: [designBriefProcessor],
   instructions,
+  // Storage comes from the Mastra instance, so threads land in the app's Postgres.
+  memory: new Memory({ options: { lastMessages } }),
   model: ({ requestContext }) => {
     const sessionId = requestContext.get("opencodeSessionId") ?? randomUUID();
     requestContext.set("opencodeSessionId", sessionId);

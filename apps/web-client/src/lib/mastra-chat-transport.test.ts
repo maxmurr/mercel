@@ -1,8 +1,9 @@
 // @vitest-environment node
 
 import type { UIMessage, UIMessageChunk } from "ai";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import {
+  createChatTransport,
   MastraChatTransport,
   toolApprovalRequest,
 } from "@/lib/mastra-chat-transport";
@@ -144,4 +145,41 @@ it("routes an answered approval to Mastra's approve or decline route", () => {
       messages({ approved: true, id: "run-1::call-1" }).slice(0, 1)
     )
   ).toBeUndefined();
+});
+
+it("sends only the newest message with the thread and its owner", async () => {
+  const fetchMock = vi.fn<typeof fetch>(() =>
+    Promise.resolve(mastraResponse([{ type: "finish" }]))
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const messages: UIMessage[] = [
+    { id: "user-1", parts: [{ text: "Hello", type: "text" }], role: "user" },
+    {
+      id: "assistant-1",
+      parts: [{ text: "Hi", type: "text" }],
+      role: "assistant",
+    },
+    { id: "user-2", parts: [{ text: "Again", type: "text" }], role: "user" },
+  ];
+
+  await createChatTransport("user-1").sendMessages({
+    abortSignal: undefined,
+    chatId: "thread-1",
+    messageId: undefined,
+    messages,
+    trigger: "submit-message",
+  });
+
+  const call = fetchMock.mock.calls.at(0);
+  if (!call) {
+    throw new Error("Chat request missing");
+  }
+  expect(String(call[0])).toBe("/api/mastra/agents/agent/stream");
+  expect(JSON.parse(String(call[1]?.body))).toEqual({
+    memory: { resource: "user-1", thread: "thread-1" },
+    messages: [messages[2]],
+    requestContext: { opencodeSessionId: "thread-1" },
+  });
+
+  vi.unstubAllGlobals();
 });

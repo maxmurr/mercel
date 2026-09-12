@@ -1,5 +1,9 @@
 import { beforeEach, expect, it } from "vitest";
-import { handleSandboxData, useSandboxStore } from "@/lib/sandbox-store";
+import {
+  handleSandboxData,
+  lastPreviewUrl,
+  useSandboxStore,
+} from "@/lib/sandbox-store";
 
 beforeEach(() => {
   useSandboxStore.setState({ lastLogSeq: 0, logs: [], preview: undefined });
@@ -74,4 +78,34 @@ it("appends only unseen process log entries", () => {
     { id: "process-2", level: "error", message: "[42] line 2" },
     { id: "process-3", level: "log", message: "[42] line 3" },
   ]);
+});
+
+it("restores the preview a stored conversation last opened", () => {
+  const previewCall = (url: string | undefined, toolCallId: string) => ({
+    input: { pid: "42" },
+    output: { message: `Preview opened at ${url}`, url },
+    state: "output-available" as const,
+    toolCallId,
+    type: "tool-open_preview" as const,
+  });
+
+  expect(lastPreviewUrl([])).toBeUndefined();
+  expect(
+    lastPreviewUrl([
+      {
+        id: "assistant-1",
+        parts: [
+          previewCall("http://localhost:5173", "call-1"),
+          { text: "Restarted it", type: "text" },
+        ],
+        role: "assistant",
+      },
+      {
+        id: "assistant-2",
+        // A dev server that never printed a URL leaves the field out.
+        parts: [previewCall(undefined, "call-2")],
+        role: "assistant",
+      },
+    ])
+  ).toBe("http://localhost:5173");
 });

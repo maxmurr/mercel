@@ -39,7 +39,9 @@ export const openPreviewTool = createTool({
   execute: async ({ pid }, { workspace, writer }) => {
     const handle = await workspace?.sandbox?.processes?.get(pid);
     if (!handle) {
-      return `No background process with PID ${pid}. Start the dev server with execute_command (background: true) first.`;
+      return {
+        message: `No background process with PID ${pid}. Start the dev server with execute_command (background: true) first.`,
+      };
     }
     const url = await waitForLocalUrl(handle);
     if (url) {
@@ -48,16 +50,21 @@ export const openPreviewTool = createTool({
         transient: true,
         type: "data-preview",
       });
-      return `Preview opened at ${url}`;
+      return { message: `Preview opened at ${url}`, url };
     }
     const reason =
       handle.exitCode === undefined
         ? `printed no http://localhost URL within ${timeoutMs / 1000}s`
         : `exited with code ${handle.exitCode} before printing a URL`;
-    return `Process ${pid} ${reason}.\n${tail(output(handle))}`;
+    return { message: `Process ${pid} ${reason}.\n${tail(output(handle))}` };
   },
   id: "open_preview",
   inputSchema: z.object({
     pid: z.string().describe("PID of the background dev server process"),
+  }),
+  // The URL is a field of its own so a reloaded chat can reopen the last preview.
+  outputSchema: z.object({
+    message: z.string(),
+    url: z.string().optional(),
   }),
 });

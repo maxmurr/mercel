@@ -21,6 +21,13 @@ vi.mock("@/components/chat/chat-composer", { spy: true });
 vi.mock("@/components/chat/chat-conversation", { spy: true });
 vi.mock("@/components/chat/chat-header", { spy: true });
 vi.mock("@/components/chat/chat-preview", { spy: true });
+// Stored history loads from the server; these tests drive live chat, so open every thread empty.
+vi.mock("@/lib/chat-thread", () => ({
+  threadOptions: (id: string) => ({
+    queryFn: () => Promise.resolve({ messages: [], resourceId: id }),
+    queryKey: ["chat-thread", id],
+  }),
+}));
 // The workspace browser fetches on mount; keep those requests out of chat assertions.
 vi.mock("@/components/chat/chat-code", () => ({
   ChatCode: () => <p>Workspace files</p>,
@@ -306,6 +313,8 @@ it("frames a supplied URL in a sandboxed separate-origin iframe", async () => {
 
 it("preserves drafts until the store has connected chat actions", async () => {
   await renderWithProviders(<ChatThreadPage />);
+  // The stored thread resolves first; the chat store connects its actions later.
+  await act(() => vi.advanceTimersByTimeAsync(0));
   await enterMessage("Early draft");
   expect(
     container.querySelector<HTMLButtonElement>('button[type="submit"]')
@@ -372,7 +381,7 @@ it("collapses and expands the chat panel from the preview toolbar", async () => 
   expect(container.querySelector('[aria-label="Show chat"]')).toBeNull();
 });
 
-it("sends UI messages, renders markdown, and reuses history and routing sessions until reset", async () => {
+it("sends the newest message with its memory thread and reuses routing sessions until reset", async () => {
   await renderPage();
   await enterMessage("  Build a dashboard\nwith charts  ");
   await clickButton("Send message");
@@ -383,6 +392,7 @@ it("sends UI messages, renders markdown, and reuses history and routing sessions
   expect(firstRequest.method).toBe("POST");
   const firstBody = await firstRequest.json();
   expect(firstBody).toMatchObject({
+    memory: { resource: initialThreadId, thread: initialThreadId },
     messages: [
       {
         parts: [{ text: "Build a dashboard\nwith charts", type: "text" }],
@@ -406,14 +416,15 @@ it("sends UI messages, renders markdown, and reuses history and routing sessions
 
   await enterMessage("Add a filter");
   await clickButton("Send message");
+  // Mastra replays the thread from storage, so the earlier turn stays off the wire.
   const secondBody = await getChatRequest(1).json();
-  expect(secondBody.messages).toHaveLength(3);
-  expect(secondBody.messages[1]).toMatchObject({
-    parts: expect.arrayContaining([
-      expect.objectContaining({ text: "A **streamed** reply.", type: "text" }),
-    ]),
-    role: "assistant",
-  });
+  expect(secondBody.messages).toEqual([
+    expect.objectContaining({
+      parts: [{ text: "Add a filter", type: "text" }],
+      role: "user",
+    }),
+  ]);
+  expect(secondBody.memory).toEqual(firstBody.memory);
   expect(secondBody.requestContext).toEqual(firstBody.requestContext);
 
   await clickButton("Preview");
@@ -429,6 +440,7 @@ it("sends UI messages, renders markdown, and reuses history and routing sessions
   const newBody = await getChatRequest(2).json();
   expect(newBody.messages).toHaveLength(1);
   expect(threadId).not.toBe(initialThreadId);
+  expect(newBody.memory).toEqual({ resource: threadId, thread: threadId });
   expect(newBody.requestContext).toEqual({ opencodeSessionId: threadId });
 });
 
@@ -561,23 +573,16 @@ it("streams tool calls in order through running, done, failed, and refused state
   expect(code(1)).toBe("Blocked");
   await expand(2);
   expect(code(2)).toBe('{  "path": "a.txt"}');
-  const history = await (async () => {
-    await enterMessage("Thanks");
-    await clickButton("Send message");
-    return (await getChatRequest(1).json()).messages[1].parts;
-  })();
-  expect(history).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        input: { url: "https://a.dev" },
-        output: { status: 200 },
-        state: "output-available",
-        toolCallId: "call-1",
-      }),
-      expect.objectContaining({ errorText: "Blocked", state: "output-error" }),
-      expect.objectContaining({ state: "output-denied", toolCallId: "call-3" }),
-    ])
-  );
+  // Finished tool calls stay on screen and in storage; the next turn carries only the new message.
+  await enterMessage("Thanks");
+  await clickButton("Send message");
+  expect((await getChatRequest(1).json()).messages).toEqual([
+    expect.objectContaining({
+      parts: [{ text: "Thanks", type: "text" }],
+      role: "user",
+    }),
+  ]);
+  expect(toolParts()).toHaveLength(3);
 });
 
 it("renders partial replies and stops streaming without losing drafts", async () => {

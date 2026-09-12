@@ -1,4 +1,10 @@
-import type { DataUIPart, UIDataTypes } from "ai";
+import {
+  type DataUIPart,
+  getToolName,
+  isToolUIPart,
+  type UIDataTypes,
+  type UIMessage,
+} from "ai";
 import { z } from "zod";
 import { create } from "zustand";
 import type { WebPreviewConsoleLog } from "@/components/ai-elements/web-preview";
@@ -6,6 +12,7 @@ import type { ProcessLogEntry } from "@/lib/process-log";
 
 const maxLogs = 500;
 
+// Matches the data part written by open_preview and that tool's own output field.
 const previewSchema = z.object({ url: z.string() });
 const outputSchema = z.object({ output: z.string(), timestamp: z.number() });
 const exitSchema = z.object({ exitCode: z.number(), success: z.boolean() });
@@ -52,6 +59,28 @@ export const useSandboxStore = create<SandboxState>()((set) => ({
       preview: { revision: (state.preview?.revision ?? 0) + 1, url },
     })),
 }));
+
+/**
+ * Finds the preview a stored conversation last opened. Dev servers outlive the
+ * page, so a reloaded thread can show the same preview instead of an empty panel.
+ */
+export function lastPreviewUrl(messages: UIMessage[]): string | undefined {
+  for (const message of messages.toReversed()) {
+    for (const part of message.parts.toReversed()) {
+      if (
+        !isToolUIPart(part) ||
+        getToolName(part) !== "open_preview" ||
+        part.state !== "output-available"
+      ) {
+        continue;
+      }
+      const preview = previewSchema.safeParse(part.output);
+      if (preview.success) {
+        return preview.data.url;
+      }
+    }
+  }
+}
 
 /** Routes Mastra data parts from the chat stream into preview and console state. */
 export function handleSandboxData(part: DataUIPart<UIDataTypes>) {

@@ -21,15 +21,30 @@ points to `apps/web-client/src/*`.
 `src/mastra/index.ts` registers `agent`, a coding agent defined in
 `src/mastra/agents/agent.ts` with its system prompt in
 `src/mastra/agents/instructions.md`. It uses GLM 5.3 Flash, model ID
-`opencode-go/glm-5.3-flash`, through Mastra's model router, with no
-conversation memory.
+`opencode-go/glm-5.3-flash`, through Mastra's model router.
 
 OpenCode Go requires `x-opencode-session` and a client-specific `User-Agent`.
 The agent sends both. It stores a generated session UUID in request context;
 reuse that context across turns, or provide the same `opencodeSessionId` UUID
 in Studio's request context for each turn. Independent calls get separate IDs.
 For HTTP calls, pass the UUID as `requestContext.opencodeSessionId` in the JSON
-body to reuse a routing session across turns. This does not enable memory.
+body to reuse a routing session across turns. This is routing only; conversation
+history comes from memory.
+
+### Memory
+
+Threads and messages persist in the app's Postgres through `PostgresStore`,
+configured on the Mastra instance in `src/mastra/index.ts`; the agent's `Memory`
+inherits it and replays the last 20 turns into the model's context. Mastra
+creates and migrates its own tables on first use, so they are not part of the
+Drizzle schema.
+
+Callers send only the newest message plus `memory: { thread, resource }`;
+Mastra loads the rest from storage. `thread` is the thread ID in the chat URL.
+`resource` is the owning account, or the thread ID itself for a thread opened
+while signed out. The web client reads a thread back through
+`GET /api/chat/[threadId]/messages`, which resolves the resource from the
+session rather than trusting the caller.
 
 Add your OpenCode Go key to `apps/web-client/.env.local`. The agent always
 loads Exa web search and fetch tools from Exa's hosted MCP server, which works
@@ -41,8 +56,7 @@ EXA_API_KEY=your-exa-api-key
 ```
 
 Keep the key server-only, never in a `NEXT_PUBLIC_*` variable. Import Mastra from
-Next.js server code, not client components. Mastra's default in-memory storage
-loses data on restart; configure persistent storage before production use.
+Next.js server code, not client components.
 
 This app uses TypeScript 6 because the Mastra CLI's `typescript-paths` dependency
 requires compiler APIs removed in TypeScript 7. Other workspaces keep the catalog

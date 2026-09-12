@@ -7,8 +7,9 @@ import {
   useChatError,
   useChatStore,
 } from "@ai-sdk-tools/store";
+import { useQuery } from "@tanstack/react-query";
 import { lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
-import { type ReactNode, useCallback, useEffect } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import {
   ChatConversation,
@@ -16,40 +17,38 @@ import {
 } from "@/components/chat/chat-conversation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  MastraChatTransport,
-  toolApprovalRequest,
-} from "@/lib/mastra-chat-transport";
+import { Spinner } from "@/components/ui/spinner";
+import { type ChatThread, threadOptions } from "@/lib/chat-thread";
+import { createChatTransport } from "@/lib/mastra-chat-transport";
 import { takePendingPrompt } from "@/lib/pending-prompt";
-import { handleSandboxData } from "@/lib/sandbox-store";
-
-const agentApi = "/api/mastra/agents/agent";
-
-const chatTransport = new MastraChatTransport({
-  api: `${agentApi}/stream`,
-  prepareSendMessagesRequest: ({ id, messages }) => {
-    const requestContext = { opencodeSessionId: id };
-    // An answered approval resumes the suspended run instead of starting a new turn.
-    const approval = toolApprovalRequest(messages);
-    if (approval) {
-      return {
-        api: `${agentApi}/${approval.route}`,
-        body: { ...approval.body, requestContext },
-      };
-    }
-    return { body: { messages, requestContext } };
-  },
-});
+import {
+  handleSandboxData,
+  lastPreviewUrl,
+  useSandboxStore,
+} from "@/lib/sandbox-store";
 
 // Keep the full useChat subscription out of the layout and selector consumers.
-function ChatConnection({ children, id }: { children: ReactNode; id: string }) {
+function ChatConnection({
+  children,
+  id,
+  thread,
+}: {
+  children: ReactNode;
+  id: string;
+  thread: ChatThread;
+}) {
+  const transport = useMemo(
+    () => createChatTransport(thread.resourceId),
+    [thread.resourceId]
+  );
   const { addToolApprovalResponse, stop } = useChat({
     id,
+    messages: thread.messages,
     onData: handleSandboxData,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     // Batch tokens to keep streamed code blocks below React's update-depth limit.
     throttle: 50,
-    transport: chatTransport,
+    transport,
   });
 
   useEffect(
@@ -113,11 +112,59 @@ function ChatError() {
   );
 }
 
+function ChatThreadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <Alert className="m-4 w-auto sm:m-5" variant="destructive">
+      <AlertDescription>
+        Unable to load this conversation. Retry before sending a message so
+        nothing is written over it.
+      </AlertDescription>
+      <Button
+        className="min-h-11 justify-self-start"
+        onClick={onRetry}
+        variant="outline"
+      >
+        Retry
+      </Button>
+    </Alert>
+  );
+}
+
 /** Owns one chat store and draft; key by session ID to reset and abort on unmount. */
 export function ChatSession({ id }: { id: string }) {
+  const { data: thread, isPending, refetch } = useQuery(threadOptions(id));
+  const openPreview = useSandboxStore((state) => state.openPreview);
+
+  useEffect(() => {
+    const url = thread && lastPreviewUrl(thread.messages);
+    if (url) {
+      openPreview(url);
+    }
+  }, [openPreview, thread]);
+
+  const handleRetry = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
+  if (isPending) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Spinner
+          aria-label="Loading conversation"
+          className="motion-reduce:animate-none"
+          role="status"
+        />
+      </div>
+    );
+  }
+
+  if (!thread) {
+    return <ChatThreadError onRetry={handleRetry} />;
+  }
+
   return (
     <Provider>
-      <ChatConnection id={id}>
+      <ChatConnection id={id} thread={thread}>
         <ChatLaunchPrompt id={id} />
         <ChatConversation className="flex-1" />
         <ChatError />
