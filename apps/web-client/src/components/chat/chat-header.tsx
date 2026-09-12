@@ -1,7 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { DownloadIcon } from "lucide-react";
 import { PublishButton } from "@/components/chat/publish-button";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
@@ -35,6 +37,21 @@ export function ChatHeader({ className, threadId }: ChatHeaderProps) {
         </h1>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        {/* The route answers with the zip itself, so a plain download link is the whole feature. */}
+        <Button
+          className="h-11"
+          nativeButton={false}
+          render={
+            <a
+              download
+              href={`/api/workspace/${encodeURIComponent(threadId)}/export`}
+            />
+          }
+          variant="outline"
+        >
+          <DownloadIcon data-icon="inline-start" />
+          Export
+        </Button>
         <PublishButton threadId={threadId} />
         <UserMenu />
       </div>

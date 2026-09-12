@@ -170,3 +170,24 @@ export async function archiveThreadWorkspace(
   );
   return new Blob([stdout]);
 }
+
+/**
+ * A zip of the thread's files for download, or nothing for a thread that has no
+ * directory yet. Leaves out what an install or a build recreates: node_modules
+ * and dist.
+ */
+export async function zipThreadWorkspace(
+  threadId: string
+): Promise<Blob | undefined> {
+  const directory = threadWorkspaceDir(threadId);
+  if (!existsSync(directory)) {
+    return;
+  }
+  // ponytail: buffered in memory like the publish tarball; stream it if projects outgrow archiveMaxBytes.
+  const { stdout } = await execFileAsync(
+    "zip",
+    ["-qXr", "-", ".", "-x", "node_modules/*", "dist/*"],
+    { cwd: directory, encoding: "buffer", maxBuffer: archiveMaxBytes }
+  );
+  return new Blob([stdout]);
+}
