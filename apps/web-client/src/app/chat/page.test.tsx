@@ -1,4 +1,5 @@
-import { act, type ComponentProps } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Streamdown } from "streamdown";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -7,6 +8,7 @@ import { ChatConversation } from "@/components/chat/chat-conversation";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatPreview } from "@/components/chat/chat-preview";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useSandboxStore } from "@/lib/sandbox-store";
 import ChatPage from "./page";
 
 vi.mock("@/components/chat/chat-composer", { spy: true });
@@ -101,6 +103,7 @@ beforeEach(() => {
   });
   fetchMock.mockReset();
   fetchMock.mockImplementation(() => Promise.resolve(chatResponse()));
+  useSandboxStore.setState({ lastLogSeq: 0, logs: [], preview: undefined });
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -121,14 +124,22 @@ async function flushChatUpdates() {
   await act(() => vi.advanceTimersByTimeAsync(50));
 }
 
-async function renderPage() {
+// The console polls sandbox logs through TanStack Query, so every render needs a client.
+async function renderWithProviders(ui: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   await act(() =>
     root.render(
-      <TooltipProvider>
-        <ChatPage />
-      </TooltipProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>{ui}</TooltipProvider>
+      </QueryClientProvider>
     )
   );
+}
+
+async function renderPage() {
+  await renderWithProviders(<ChatPage />);
   await flushChatUpdates();
 }
 
@@ -241,16 +252,15 @@ it("starts empty with a placeholder preview and accessible layout", async () => 
       .querySelector("#chat-resizable-panel")
       ?.getAttribute("data-mobile-hidden")
   ).toBe("false");
-  expect(fetchMock).not.toHaveBeenCalled();
+  // Opening the console starts polling dev-server logs; nothing else touches the network.
+  expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
+    "/api/sandbox/logs?after=0",
+  ]);
 });
 
 it("frames a supplied URL in a sandboxed separate-origin iframe", async () => {
-  await act(() =>
-    root.render(
-      <TooltipProvider>
-        <ChatPreview title="Example site" url="http://abc12.localhost:3001/" />
-      </TooltipProvider>
-    )
+  await renderWithProviders(
+    <ChatPreview title="Example site" url="http://abc12.localhost:3001/" />
   );
   const preview = container.querySelector("iframe");
   expect(preview?.getAttribute("src")).toBe("http://abc12.localhost:3001/");
@@ -278,13 +288,7 @@ it("frames a supplied URL in a sandboxed separate-origin iframe", async () => {
 });
 
 it("preserves drafts until the store has connected chat actions", async () => {
-  await act(() =>
-    root.render(
-      <TooltipProvider>
-        <ChatPage />
-      </TooltipProvider>
-    )
-  );
+  await renderWithProviders(<ChatPage />);
   await enterMessage("Early draft");
   expect(
     container.querySelector<HTMLButtonElement>('button[type="submit"]')
@@ -862,6 +866,50 @@ it("preserves drafts, history, and the preview across panel toggles", async () =
     previewUrlInput
   );
   expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("opens the preview from a data-preview chunk and logs sandbox output", async () => {
+  fetchMock.mockResolvedValueOnce(
+    mastraResponse(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "start" });
+          controller.enqueue({
+            data: { output: "added 68 packages\n", timestamp: 1000 },
+            transient: true,
+            type: "data-sandbox-stdout",
+          });
+          controller.enqueue({
+            data: { url: "http://localhost:5174" },
+            transient: true,
+            type: "data-preview",
+          });
+          controller.enqueue({
+            payload: { text: "Live." },
+            type: "text-delta",
+          });
+          controller.enqueue({ type: "finish" });
+          controller.close();
+        },
+      })
+    )
+  );
+  await renderPage();
+  await enterMessage("Build it");
+  await clickButton("Send message");
+
+  expect(container.querySelector("iframe")?.getAttribute("src")).toBe(
+    "http://localhost:5174"
+  );
+  expect(
+    container.querySelector<HTMLInputElement>('input[aria-label="Preview URL"]')
+      ?.value
+  ).toBe("http://localhost:5174");
+  expect(container.querySelector('[role="log"]')?.textContent).toContain(
+    "Live."
+  );
+  await clickButton("Console");
+  expect(container.textContent).toContain("added 68 packages");
 });
 
 it("rejects blank submits and preserves Shift+Enter and IME composition", async () => {

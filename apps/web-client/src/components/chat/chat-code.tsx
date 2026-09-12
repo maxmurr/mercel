@@ -20,10 +20,8 @@ import {
   useEffect,
   useState,
 } from "react";
-import {
-  WebPreviewConsole,
-  WebPreviewNavigationButton,
-} from "@/components/ai-elements/web-preview";
+import { WebPreviewNavigationButton } from "@/components/ai-elements/web-preview";
+import { SandboxConsole } from "@/components/chat/sandbox-console";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Breadcrumb,
@@ -48,6 +46,8 @@ const rootPath = ".";
 const fileTreeId = "workspace-file-tree";
 const hiddenEntries = new Set(["node_modules", ".git"]);
 const highlightLimit = 100_000;
+// The agent keeps editing files, so folders and the open file refresh while the tab is visible.
+const liveRefreshMs = 2000;
 
 type Language = HighlightOptions["language"];
 type TokenLines = HighlightResult["tokens"];
@@ -104,11 +104,11 @@ function directoryOptions(path: string) {
   return queryOptions({
     queryFn: () => fetchWorkspace<{ entries: WorkspaceEntry[] }>("list", path),
     queryKey: ["workspace-directory", path],
+    refetchInterval: liveRefreshMs,
     select: (data) =>
       data.entries
         .filter((entry) => !hiddenEntries.has(entry.name))
         .toSorted(compareEntries),
-    // The agent keeps editing files, so refetch whenever a folder or the tab mounts.
     staleTime: 0,
   });
 }
@@ -117,6 +117,7 @@ function fileOptions(path: string) {
   return queryOptions({
     queryFn: () => fetchWorkspace<{ content: string }>("read", path),
     queryKey: ["workspace-file", path],
+    refetchInterval: liveRefreshMs,
     select: (data) => data.content,
     staleTime: 0,
   });
@@ -638,7 +639,7 @@ export function ChatCode({ className }: { className?: string }) {
       <div className="@container flex min-h-0 min-w-0 flex-1">
         <WorkspaceBrowser />
       </div>
-      <WebPreviewConsole />
+      <SandboxConsole />
     </div>
   );
 }

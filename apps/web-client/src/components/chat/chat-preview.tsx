@@ -5,11 +5,11 @@ import { useCallback, useState } from "react";
 import {
   WebPreview,
   WebPreviewBody,
-  WebPreviewConsole,
   WebPreviewNavigation,
   WebPreviewNavigationButton,
   WebPreviewUrl,
 } from "@/components/ai-elements/web-preview";
+import { SandboxConsole } from "@/components/chat/sandbox-console";
 import {
   Empty,
   EmptyDescription,
@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 interface ChatPreviewProps {
   className?: string;
   title: string;
-  url?: string;
+  url?: string | undefined;
 }
 
 /** Shows a script-enabled chat preview, or an empty state until the caller supplies a separate-origin URL. */
@@ -75,7 +75,7 @@ export function ChatPreview({ className, title, url }: ChatPreviewProps) {
           </EmptyHeader>
         </Empty>
       )}
-      <WebPreviewConsole />
+      <SandboxConsole />
     </WebPreview>
   );
 }

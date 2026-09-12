@@ -18,9 +18,10 @@ points to `apps/web-client/src/*`.
 
 ## Mastra
 
-`src/mastra/index.ts` registers `agent`, a simple assistant defined in
-`src/mastra/agents/agent.ts`. It uses DeepSeek V4.1 Flash, model ID
-`opencode-go/deepseek-flash`, through Mastra's model router, with no tools or
+`src/mastra/index.ts` registers `agent`, a coding agent defined in
+`src/mastra/agents/agent.ts` with its system prompt in
+`src/mastra/agents/instructions.md`. It uses GLM 5.3 Flash, model ID
+`opencode-go/glm-5.3-flash`, through Mastra's model router, with no
 conversation memory.
 
 OpenCode Go requires `x-opencode-session` and a client-specific `User-Agent`.
@@ -98,9 +99,33 @@ state. Draft edits stay in the composer; streamed deltas do not re-render the
 page layout, preview, or completed messages. New chat remounts only the session,
 clearing its store and draft without reloading the preview.
 
-This is text-only chat with the existing assistant. Tool calls, approvals,
-persistent history, and app generation are not connected. The preview remains
-a static example.
+## Sandbox build loop
+
+The agent works in a Mastra workspace rooted at `apps/web-client/.sandbox`
+(`LocalFilesystem` plus `LocalSandbox` with macOS seatbelt or Linux bwrap
+isolation, network allowed, `~/.npm` writable). It writes files with the
+built-in `mastra_workspace_*` tools, runs `npm install`, starts `npm run dev`
+with `background: true`, then calls `open_preview` (`src/mastra/tools/preview.ts`)
+with the PID. That tool waits for the `http://localhost:PORT` line in the
+process output and emits a `data-preview` chunk.
+
+`src/lib/mastra-chat-transport.ts` forwards Mastra `data-*` chunks as transient
+AI SDK data parts. `useChat` `onData` routes them into
+`src/lib/sandbox-store.ts`: `data-preview` sets the iframe URL on the Preview
+tab, and `data-sandbox-stdout/stderr/exit` from foreground commands feed the
+Console drawer. Background processes only report to the server, so
+`src/mastra/tools/process-log.ts` keeps their last 1000 lines and serves them at
+`GET /api/sandbox/logs?after=<seq>` (`src/app/api/sandbox/logs/route.ts`); `SandboxConsole` polls it every two
+seconds while the console is open or a preview exists. The Code tab refetches
+folders and the open file every two seconds while visible.
+
+The sandbox is shared by every chat and survives New chat; dev servers keep
+running after the request that started them. The agent can stop them with
+`kill_process` while the server process that spawned them is alive; after a
+Next.js restart or HMR reload of the agent module they are orphaned, so kill
+stray `vite` processes yourself. `open_preview` reads the URL from the process
+it is given, so a new server on another port still previews correctly. Persistent history, approvals UI, and
+Publish are not connected.
 
 The adapter handles routing, validation, errors, and request cancellation. Its
 default body limit is 4.5 MB. Configure it with `server.bodySizeLimit` on the

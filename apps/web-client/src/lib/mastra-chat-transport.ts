@@ -3,6 +3,7 @@ import { HttpChatTransport, type UIMessage, type UIMessageChunk } from "ai";
 import { z } from "zod";
 
 const mastraChunkSchema = z.object({
+  data: z.unknown().optional(),
   payload: z.unknown().optional(),
   type: z.string(),
 });
@@ -152,6 +153,15 @@ export class MastraChatTransport extends HttpChatTransport<UIMessage> {
           const { type, payload } = chunk.value;
           if (type === "error") {
             throw new Error("Mastra chat stream failed");
+          }
+          if (type.startsWith("data-")) {
+            // Sandbox output and preview URLs feed UI state only; keep them out of message history.
+            controller.enqueue({
+              data: chunk.value.data,
+              transient: true,
+              type: type as `data-${string}`,
+            });
+            return;
           }
           if (type.startsWith("tool-")) {
             for (const toolChunk of toolChunks(type, payload)) {

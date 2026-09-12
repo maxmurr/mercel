@@ -12,6 +12,7 @@ import { ChatConversation } from "@/components/chat/chat-conversation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { MastraChatTransport } from "@/lib/mastra-chat-transport";
+import { handleSandboxData } from "@/lib/sandbox-store";
 
 const chatTransport = new MastraChatTransport({
   api: "/api/mastra/agents/agent/stream",
@@ -27,6 +28,7 @@ const chatTransport = new MastraChatTransport({
 function ChatConnection({ id }: { id: string }) {
   const { stop } = useChat({
     id,
+    onData: handleSandboxData,
     // Batch tokens to keep streamed code blocks below React's update-depth limit.
     throttle: 50,
     transport: chatTransport,

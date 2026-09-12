@@ -23,6 +23,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSandboxStore } from "@/lib/sandbox-store";
 
 const chatResizablePanelId = "chat-resizable-panel";
 
@@ -33,6 +34,7 @@ export default function ChatPage() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const chatPanelRef = usePanelRef();
   const isMobileLayout = useIsMobile(1024);
+  const preview = useSandboxStore((state) => state.preview);
 
   function handleNewChat() {
     setChatId(crypto.randomUUID());
@@ -130,7 +132,11 @@ export default function ChatPage() {
                 </TabsList>
               </div>
               <TabsContent className="min-h-0" keepMounted value="preview">
-                <ChatPreview title="Agent preview" />
+                <ChatPreview
+                  key={preview?.revision}
+                  title="Agent preview"
+                  url={preview?.url}
+                />
               </TabsContent>
               <TabsContent className="min-h-0" value="code">
                 <ChatCode />
