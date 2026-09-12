@@ -42,8 +42,6 @@ async function resumableRunId(resourceId: string, threadId: string) {
  * connection costs the stream but not the reply. An empty 204 tells the chat
  * there is nothing to resume.
  *
- * ponytail: runs are tracked in this process, so a restart or a second instance
- * has nothing to resume; durable agents over a Redis PubSub would survive both.
  */
 export async function GET(
   request: Request,

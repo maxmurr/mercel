@@ -41,7 +41,6 @@ export function toolApprovalRequest(messages: UIMessage[]) {
   if (lastMessage?.role !== "assistant") {
     return;
   }
-  // ponytail: resumes one call per request; a second pending approval re-prompts once the first resumes.
   for (const part of lastMessage.parts) {
     if (!isToolUIPart(part) || part.state !== "approval-responded") {
       continue;
