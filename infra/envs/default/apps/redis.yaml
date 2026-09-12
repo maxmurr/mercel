@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis
+  namespace: argocd
+spec:
+  destination:
+    namespace: redis
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    repoURL: https://github.com/maxmurr/mercel
+    targetRevision: main
+    path: infra/workloads/redis
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
