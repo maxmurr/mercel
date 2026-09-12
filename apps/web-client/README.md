@@ -102,16 +102,26 @@ existing endpoint through `@ai-sdk-tools/store`'s `useChat` and
 `@ai-sdk/react` remains installed as the store's peer dependency.
 
 The transport converts native Mastra SSE text deltas into AI SDK UI messages.
-It sends the full conversation and a stable `requestContext.opencodeSessionId`
-UUID on each turn. New chat starts a new session. Stop, reset, and navigation
-abort the current request; failed replies can be retried without duplicating
-the user message. The connection throttles token updates to 50 ms before the
-store batches them. `src/components/chat/chat-session.tsx` owns a store per
-conversation and isolates the full `useChat` subscription. The message list
+It sends only the newest message, because Mastra reloads the rest from memory,
+plus a `requestContext` carrying the thread ID as both `opencodeSessionId` and
+`threadId`, so each thread keeps its own routing session and its own sandbox.
+Stop, reset, and navigation abort the current request; failed replies can be
+retried without duplicating the user message. The connection throttles token
+updates to 50 ms before the store batches them.
+`src/components/chat/chat-session.tsx` owns a store per conversation and isolates
+the full `useChat` subscription. The message list
 subscribes to IDs, each row to its message, and the composer to actions and busy
 state. Draft edits stay in the composer; streamed deltas do not re-render the
 page layout, preview, or completed messages. New chat remounts only the session,
 clearing its store and draft without reloading the preview.
+
+`src/components/ai-elements/tool.tsx` renders each tool call as one row. Writes,
+edits, commands, and `open_preview` say what they did — the path, the command,
+the preview URL — and expand to the file content, a diff, or the command output;
+everything else falls back to the tool name and its raw input or result. The
+read-only workspace calls (`read_file`, `list_files`, `file_stat`, `grep`,
+`search`, `index`, `lsp_inspect`, `get_process_output`) render nothing, so a turn
+spent reading shows the thinking indicator rather than a wall of rows.
 
 ## Sandbox build loop
 
@@ -136,14 +146,17 @@ AI SDK data parts. `useChat` `onData` routes them into
 tab, and `data-sandbox-stdout/stderr/exit` from foreground commands feed the
 Console drawer. Background processes only report to the server, so
 `src/lib/process-log.ts` keeps their last 1000 lines and serves them at
-`GET /api/sandbox/logs?after=<seq>` (`src/app/api/sandbox/logs/route.ts`); `SandboxConsole` polls it every two
-seconds while the console is open or a preview exists. The Code tab refetches
-folders and the open file every two seconds while visible.
+`GET /api/sandbox/logs/<threadId>?after=<seq>`
+(`src/app/api/sandbox/logs/[threadId]/route.ts`), filtered to the processes that
+thread's sandbox owns; `SandboxConsole` polls it every two seconds while the
+console is open or a preview exists. The Code tab refetches folders and the open
+file every two seconds while visible.
 
-The sandbox is shared by every chat and survives New chat; dev servers keep
-running after the request that started them. The agent can stop them with
-`kill_process` while the server process that spawned them is alive; after a
-Next.js restart or HMR reload of the agent module they are orphaned, so kill
+Each thread keeps its own sandbox, created on first use and reused across turns
+(`src/mastra/thread-workspace.ts`); dev servers keep running after the request
+that started them. The agent can stop them with `kill_process` while the server
+process that spawned them is alive; after a Next.js restart or HMR reload of the
+agent module they are orphaned, so kill
 stray `vite` processes yourself. `open_preview` reads the URL from the process
 it is given, so a new server on another port still previews correctly. Persistent history, approvals UI, and
 Publish are not connected.
@@ -152,9 +165,9 @@ The adapter handles routing, validation, errors, and request cancellation. Its
 default body limit is 4.5 MB. Configure it with `server.bodySizeLimit` on the
 Mastra instance. See the [Next.js adapter reference](https://mastra.ai/reference/server/next-adapter).
 
-This exposes Mastra's full API, with no authentication or rate limiting configured.
-Keep it local until those controls are added; anyone with access can run agents
-and spend your model quota.
+This exposes Mastra's full API to any signed-in account, with no rate limiting
+configured. Keep it local until that control is added; anyone who can sign in
+can run agents and spend your model quota.
 
 ## Authentication
 
@@ -193,12 +206,18 @@ Email addresses** set to read-only, or sign-in fails with `email_not_found`.
 
 Stored OAuth tokens are encrypted with the auth secret. Better Auth rate-limits
 its endpoints in production and trusts only the `BETTER_AUTH_URL` origin; add
-`trustedOrigins` when the app is served from another host. Nothing is gated yet:
-every page, the Mastra API, and the sandbox routes stay public.
+`trustedOrigins` when the app is served from another host. Every API route is
+gated through `src/lib/thread-access.ts`: the Mastra API, the chat routes, the
+workspace routes, and the sandbox logs all answer `401` without a session and
+`403` for a thread owned by another account. The Mastra API also replaces the
+`memory.resource` the browser sent with the signed-in account. Pages themselves
+are not gated; a signed-out visitor can open them, and every request they make
+is refused.
 
 ## Deploy and preview
 
-Deploy submits the fixed `maxmurr/vite-react-app` repository to the upload API.
+The `/demo-deploy` page submits the public GitHub repository URL you enter to the
+upload API, and its default branch is deployed.
 The button shows a spinner and `Deploying...` while the server clones and uploads
 source, then while the browser polls `/status?id=...` every two seconds. Only
 `completed` shows congratulations and a live preview. Click anywhere on the
