@@ -492,6 +492,22 @@ it("streams tool calls in order through running, done, failed, and refused state
       type: "tool-output-denied",
     });
     await writer.write({
+      payload: {
+        args: { objective: "Find fees", query: "Stripe Billing fees" },
+        toolCallId: "call-4",
+        toolName: "exa_web_search_exa",
+      },
+      type: "tool-call",
+    });
+    await writer.write({
+      payload: {
+        result: "Stripe charges 2.9%.",
+        toolCallId: "call-4",
+        toolName: "exa_web_search_exa",
+      },
+      type: "tool-result",
+    });
+    await writer.write({
       payload: { id: "t2", text: "All done." },
       type: "text-delta",
     });
@@ -506,8 +522,14 @@ it("streams tool calls in order through running, done, failed, and refused state
   ]);
   const reply = log()?.querySelectorAll('[data-slot="message"]')[1];
   expect(reply?.textContent).toBe(
-    "Looking.web_fetchexecute_commanddeleteAll done."
+    "Looking.web_fetchexecute_commanddeleteSearched the web for Stripe Billing feesAll done."
   );
+  expect(
+    reply
+      ?.querySelector('[data-status="done"]:not([data-slot="tool-part"])')
+      ?.querySelector("svg")
+      ?.classList.contains("lucide-globe")
+  ).toBe(true);
   const expand = (index: number) =>
     act(() =>
       toolParts()[index]?.querySelector<HTMLButtonElement>("button")?.click()

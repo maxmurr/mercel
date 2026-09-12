@@ -10,6 +10,10 @@ import { MessageSquareIcon } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { Reasoning } from "@/components/ai-elements/reasoning";
 import { ToolPart } from "@/components/ai-elements/tool";
+import {
+  isWebSearchPart,
+  WebSearchPart,
+} from "@/components/ai-elements/web-search";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import {
   Empty,
@@ -40,7 +44,11 @@ function AssistantPart({
   part: UIMessage["parts"][number];
 }) {
   if (isToolUIPart(part)) {
-    return <ToolPart part={part} />;
+    return isWebSearchPart(part) ? (
+      <WebSearchPart part={part} />
+    ) : (
+      <ToolPart part={part} />
+    );
   }
   if (part.type !== "text" && part.type !== "reasoning") {
     return null;
