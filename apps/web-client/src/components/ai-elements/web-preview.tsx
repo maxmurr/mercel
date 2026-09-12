@@ -75,6 +75,7 @@ export function WebPreviewUrl({
       aria-label="Preview URL"
       className={cn("min-w-0 flex-1", className)}
       readOnly
+      translate="no"
       {...props}
     />
   );
@@ -107,6 +108,13 @@ interface WebPreviewConsoleProps extends ComponentProps<typeof Collapsible> {
   logs?: WebPreviewConsoleLog[];
 }
 
+// Resolves to the reader's own locale; log rows only ever render on the client.
+const logTimeFormat = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
 /** Shows preview console output in a collapsible drawer that starts closed. */
 export function WebPreviewConsole({
   className,
@@ -125,7 +133,13 @@ export function WebPreviewConsole({
           className="size-4 shrink-0 transition-transform duration-200 ease-out group-aria-expanded/console:rotate-180 motion-reduce:transition-none"
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="max-h-48 overflow-y-auto px-4 pb-4 text-sm">
+      <CollapsibleContent
+        aria-label="Console output"
+        className="scrollbar-subtle max-h-48 overflow-y-auto px-4 pb-4 text-sm"
+        // `log` announces appended lines without re-reading the whole history.
+        role="log"
+        tabIndex={0}
+      >
         {logs.length === 0 ? (
           <p className="text-muted-foreground">No console output.</p>
         ) : (
@@ -133,15 +147,16 @@ export function WebPreviewConsole({
             {logs.map((log) => (
               <li
                 className={cn(
+                  "wrap-anywhere",
                   log.level === "error" && "text-destructive",
                   log.level === "warn" && "text-amber-600 dark:text-amber-400"
                 )}
                 key={log.id}
               >
                 <span className="text-muted-foreground tabular-nums">
-                  {log.timestamp.toLocaleTimeString()}
+                  {logTimeFormat.format(log.timestamp)}
                 </span>{" "}
-                {log.message}
+                <span translate="no">{log.message}</span>
               </li>
             ))}
           </ol>

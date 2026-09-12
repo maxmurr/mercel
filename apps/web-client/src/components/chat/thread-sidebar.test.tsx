@@ -97,7 +97,7 @@ it("lists the account's conversations and marks the open one", async () => {
 
   expect(fetchMock).toHaveBeenCalledWith("/api/chat/threads");
   expect(container.querySelector('a[href="/chat"]')?.textContent).toBe(
-    "New chat"
+    "New Chat"
   );
   const links = threadLinks();
   expect(links.map((link) => link.getAttribute("href"))).toEqual([

@@ -139,7 +139,7 @@ export function ProjectSettings({ className }: { className?: string }) {
           value="./"
         />
       </FieldGroup>
-      <Collapsible className="rounded-lg border focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+      <Collapsible className="rounded-lg border has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
         <h2>
           <CollapsibleTrigger
             className="group/build-settings flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left font-medium text-muted-foreground text-sm outline-none hover:text-foreground"

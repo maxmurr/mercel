@@ -16,6 +16,7 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { ChatPreview } from "@/components/chat/chat-preview";
 import { ChatSession } from "@/components/chat/chat-session";
 import { ThreadSidebar } from "@/components/chat/thread-sidebar";
+import { mainContentId } from "@/components/skip-link";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
@@ -26,6 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSearchParamState } from "@/hooks/use-search-param";
 import { useSandboxStore } from "@/lib/sandbox-store";
 
 const chatResizablePanelId = "chat-resizable-panel";
@@ -33,6 +35,9 @@ const chatResizablePanelId = "chat-resizable-panel";
 /** Chats with the registered Mastra agent; the thread ID in the URL owns the conversation. */
 export default function ChatThreadPage() {
   const { threadId } = useParams<{ threadId: string }>();
+  // Which workspace tab is open travels in the URL so a reload or a shared link reopens it.
+  const [view, setView] = useSearchParamState("view", "preview");
+  // Whether the narrow layout shows chat or the workspace follows the viewport, not the link.
   const [mobilePanel, setMobilePanel] = useState("chat");
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const chatPanelRef = usePanelRef();
@@ -41,6 +46,10 @@ export default function ChatThreadPage() {
 
   function handlePanelToggle() {
     setMobilePanel((panel) => (panel === "chat" ? "preview" : "chat"));
+  }
+
+  function handleViewChange(value: unknown) {
+    setView(String(value));
   }
 
   function handleLayoutChanged(layout: Layout) {
@@ -63,10 +72,14 @@ export default function ChatThreadPage() {
       defaultOpen={false}
     >
       <ThreadSidebar />
-      <SidebarInset className="min-h-0 overflow-hidden">
+      <SidebarInset
+        className="inset-safe min-h-0 overflow-hidden"
+        id={mainContentId}
+        tabIndex={-1}
+      >
         <ChatHeader threadId={threadId} />
         <Separator />
-        <div className="flex shrink-0 items-center justify-end gap-3 px-4 py-2 sm:px-6 lg:hidden">
+        <div className="flex shrink-0 items-center justify-end gap-3 border-b px-4 py-2 sm:px-6 lg:hidden">
           <Button
             aria-controls={
               mobilePanel === "chat" ? "preview-panel" : "chat-panel"
@@ -80,10 +93,9 @@ export default function ChatThreadPage() {
             ) : (
               <MessageSquareIcon data-icon="inline-start" />
             )}
-            {mobilePanel === "chat" ? "Preview" : "Chat"}
+            {mobilePanel === "chat" ? "Show Preview" : "Show Chat"}
           </Button>
         </div>
-        <Separator />
         <ResizablePanelGroup
           className="max-lg:*:grow! max-lg:*:data-[mobile-hidden=true]:hidden! min-h-0 flex-1 has-data-[separator=active]:[&_iframe]:pointer-events-none"
           disabled={isMobileLayout}
@@ -104,7 +116,7 @@ export default function ChatThreadPage() {
             </ChatPanel>
           </ResizablePanel>
           <ResizableHandle
-            aria-label="Resize chat and preview"
+            aria-label="Resize Chat and Preview"
             className="hidden lg:flex"
             withHandle
           />
@@ -114,15 +126,20 @@ export default function ChatThreadPage() {
             id="preview-resizable-panel"
             minSize="50%"
           >
-            <ChatPanel aria-label="Example preview" id="preview-panel">
-              <Tabs className="h-full min-h-0 gap-0" defaultValue="preview">
+            <ChatPanel aria-label="Workspace" id="preview-panel">
+              <Tabs
+                className="h-full min-h-0 gap-0"
+                onValueChange={handleViewChange}
+                value={view}
+              >
                 <div className="flex shrink-0 items-center gap-1 border-b px-2">
                   <WebPreviewNavigationButton
                     aria-controls="chat-panel"
+                    aria-expanded={!isChatCollapsed}
                     className="max-lg:hidden"
                     onClick={handleChatCollapseToggle}
                     size="icon"
-                    tooltip={isChatCollapsed ? "Show chat" : "Hide chat"}
+                    tooltip={isChatCollapsed ? "Show Chat" : "Hide Chat"}
                   >
                     {isChatCollapsed ? (
                       <PanelLeftOpenIcon />

@@ -40,7 +40,7 @@ export function ThemeSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label="Change theme"
+        aria-label="Change Theme"
         render={
           <Button
             className="size-11 motion-reduce:transition-none"

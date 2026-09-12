@@ -16,6 +16,8 @@ let threadId = initialThreadId;
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ threadId }),
+  // The real hook subscribes to history; reading location is enough for these tests.
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 vi.mock("@/components/chat/chat-composer", { spy: true });
 vi.mock("@/components/chat/chat-conversation", { spy: true });
@@ -23,6 +25,7 @@ vi.mock("@/components/chat/chat-header", { spy: true });
 vi.mock("@/components/chat/chat-preview", { spy: true });
 // Stored history loads from the server; these tests drive live chat, so open every thread empty.
 vi.mock("@/lib/chat-thread", () => ({
+  stopThreadRun: () => Promise.resolve(),
   threadLabel: ({ title }: { title: string }) => title,
   threadListKey: ["chat-threads"],
   threadListOptions: () => ({
@@ -30,7 +33,8 @@ vi.mock("@/lib/chat-thread", () => ({
     queryKey: ["chat-threads"],
   }),
   threadOptions: (id: string) => ({
-    queryFn: () => Promise.resolve({ messages: [], resourceId: id }),
+    queryFn: () =>
+      Promise.resolve({ isStreaming: false, messages: [], resourceId: id }),
     queryKey: ["chat-thread", id],
   }),
 }));
@@ -140,6 +144,7 @@ afterEach(async () => {
   container.remove();
   Reflect.deleteProperty(Element.prototype, "getAnimations");
   Reflect.deleteProperty(Element.prototype, "scrollTo");
+  window.history.replaceState(null, "", "/");
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -241,11 +246,11 @@ it("starts empty with a placeholder preview and accessible layout", async () => 
   expect(previewUrlInput?.value).toBe("/");
   expect(previewUrlInput?.readOnly).toBe(true);
   expect(
-    container.querySelector<HTMLButtonElement>('[aria-label="Reload preview"]')
+    container.querySelector<HTMLButtonElement>('[aria-label="Reload Preview"]')
       ?.disabled
   ).toBe(true);
   const previewLink = container.querySelector(
-    '[aria-label="Open preview in new tab"]'
+    '[aria-label="Open Preview in New Tab"]'
   );
   expect(previewLink?.hasAttribute("href")).toBe(false);
   expect(previewLink?.getAttribute("aria-disabled")).toBe("true");
@@ -266,7 +271,7 @@ it("starts empty with a placeholder preview and accessible layout", async () => 
   expect(
     container.querySelector('[role="tabpanel"]:not([hidden])')?.textContent
   ).toBe("Workspace files");
-  await clickButton("Preview");
+  await clickButton("Show Preview");
   expect(
     container
       .querySelector("#chat-resizable-panel")
@@ -277,7 +282,7 @@ it("starts empty with a placeholder preview and accessible layout", async () => 
       .querySelector("#preview-resizable-panel")
       ?.getAttribute("data-mobile-hidden")
   ).toBe("false");
-  await clickButton("Chat");
+  await clickButton("Show Chat");
   expect(
     container
       .querySelector("#chat-resizable-panel")
@@ -316,9 +321,9 @@ it("frames a supplied URL in a sandboxed separate-origin iframe", async () => {
   expect(previewLink?.getAttribute("target")).toBe("_blank");
   expect(previewLink?.getAttribute("rel")).toBe("noopener noreferrer");
   expect(previewLink?.getAttribute("aria-label")).toBe(
-    "Open preview in new tab"
+    "Open Preview in New Tab"
   );
-  await clickButton("Reload preview");
+  await clickButton("Reload Preview");
   expect(container.querySelector("iframe")).not.toBe(preview);
 });
 
@@ -339,7 +344,7 @@ it("preserves drafts until the store has connected chat actions", async () => {
   expect(getTextarea().value).toBe("Early draft");
   expect(fetchMock).not.toHaveBeenCalled();
   await flushChatUpdates();
-  await clickButton("Send message");
+  await clickButton("Send Message");
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
@@ -347,7 +352,7 @@ it("resizes with the keyboard, stops at a 50/50 split, and collapses at Home", a
   vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(500);
   await renderPage();
   const handle = container.querySelector<HTMLElement>(
-    '[aria-label="Resize chat and preview"]'
+    '[aria-label="Resize Chat and Preview"]'
   );
   expect(handle?.getAttribute("role")).toBe("separator");
   expect(handle?.getAttribute("aria-valuemin")).toBe("0");
@@ -371,31 +376,31 @@ it("resizes with the keyboard, stops at a 50/50 split, and collapses at Home", a
     )
   );
   expect(handle?.getAttribute("aria-valuenow")).toBe("0");
-  expect(container.querySelector('[aria-label="Show chat"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Show Chat"]')).not.toBeNull();
 });
 
 it("collapses and expands the chat panel from the preview toolbar", async () => {
   vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(500);
   await renderPage();
   const handle = container.querySelector<HTMLElement>(
-    '[aria-label="Resize chat and preview"]'
+    '[aria-label="Resize Chat and Preview"]'
   );
-  const toggle = container.querySelector('[aria-label="Hide chat"]');
+  const toggle = container.querySelector('[aria-label="Hide Chat"]');
   expect(toggle?.getAttribute("aria-controls")).toBe("chat-panel");
   expect(handle?.getAttribute("aria-valuenow")).toBe("40");
-  await clickButton("Hide chat");
+  await clickButton("Hide Chat");
   expect(handle?.getAttribute("aria-valuenow")).toBe("0");
-  expect(container.querySelector('[aria-label="Hide chat"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Hide Chat"]')).toBeNull();
   expect(getTextarea().value).toBe("");
-  await clickButton("Show chat");
+  await clickButton("Show Chat");
   expect(handle?.getAttribute("aria-valuenow")).toBe("40");
-  expect(container.querySelector('[aria-label="Show chat"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Show Chat"]')).toBeNull();
 });
 
 it("sends the newest message with its memory thread and reuses routing sessions until reset", async () => {
   await renderPage();
   await enterMessage("  Build a dashboard\nwith charts  ");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   const firstRequest = getChatRequest(0);
   expect(firstRequest.url).toBe(
     `${window.location.origin}/api/mastra/agents/agent/stream`
@@ -426,7 +431,7 @@ it("sends the newest message with its memory thread and reuses routing sessions 
   ).toHaveLength(1);
 
   await enterMessage("Add a filter");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   // Mastra replays the thread from storage, so the earlier turn stays off the wire.
   const secondBody = await getChatRequest(1).json();
   expect(secondBody.messages).toEqual([
@@ -438,7 +443,7 @@ it("sends the newest message with its memory thread and reuses routing sessions 
   expect(secondBody.memory).toEqual(firstBody.memory);
   expect(secondBody.requestContext).toEqual(firstBody.requestContext);
 
-  await clickButton("Preview");
+  await clickButton("Show Preview");
   await startNewChat();
   expect(container.querySelectorAll('[data-slot="message"]')).toHaveLength(0);
   expect(
@@ -447,7 +452,7 @@ it("sends the newest message with its memory thread and reuses routing sessions 
       ?.getAttribute("data-mobile-hidden")
   ).toBe("false");
   await enterMessage("New conversation");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   const newBody = await getChatRequest(2).json();
   expect(newBody.messages).toHaveLength(1);
   expect(threadId).not.toBe(initialThreadId);
@@ -464,7 +469,7 @@ it("streams tool calls in order through running, done, failed, and refused state
   fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
   await renderPage();
   await enterMessage("Fetch the docs");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   await act(async () => {
     await writer.write({
       payload: { id: "t1", text: "Looking." },
@@ -589,7 +594,7 @@ it("streams tool calls in order through running, done, failed, and refused state
   expect(code(2)).toBe('{  "path": "a.txt"}');
   // Finished tool calls stay on screen and in storage; the next turn carries only the new message.
   await enterMessage("Thanks");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   expect((await getChatRequest(1).json()).messages).toEqual([
     expect.objectContaining({
       parts: [{ text: "Thanks", type: "text" }],
@@ -651,7 +656,7 @@ it("renders partial replies and stops streaming without losing drafts", async ()
     "Partial reply"
   );
   expect(container.querySelector('[role="status"]')).toBeNull();
-  await clickButton("Stop generating");
+  await clickButton("Stop Generating");
   expect(getChatRequest(0).signal.aborted).toBe(true);
   expect(getTextarea().value).toBe("Next draft");
   expect(container.querySelector('[role="log"]')?.textContent).toContain(
@@ -666,7 +671,7 @@ it("batches rapid code deltas before rendering and keeps the final reply", async
   fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
   await renderPage();
   await enterMessage("Can you create simple todo app ?");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   const deltas = [
     "```html\n",
     ...Array.from({ length: 120 }, (_, index) => `<div>Todo ${index}</div>\n`),
@@ -699,7 +704,7 @@ it("batches rapid code deltas before rendering and keeps the final reply", async
     await writer.close();
   });
   await flushChatUpdates();
-  expect(container.querySelector('[aria-label="Stop generating"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Stop Generating"]')).toBeNull();
   expect(container.querySelector('[role="log"] code')?.textContent).toContain(
     "<div>Todo 119</div>"
   );
@@ -711,13 +716,13 @@ it("batches rapid code deltas before rendering and keeps the final reply", async
 it("isolates draft edits and streamed deltas from layout and completed messages", async () => {
   await renderPage();
   await enterMessage("First turn");
-  await clickButton("Send message");
+  await clickButton("Send Message");
 
   const stream = new TransformStream<unknown, unknown>();
   const writer = stream.writable.getWriter();
   fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
   await enterMessage("Second turn");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   await act(async () => {
     await writer.write({ payload: { text: "Partial" }, type: "text-delta" });
     await vi.advanceTimersByTimeAsync(50);
@@ -764,7 +769,7 @@ it("isolates draft edits and streamed deltas from layout and completed messages"
     previewUrlInput
   );
   expect(getTextarea().value).toBe("Next draft");
-  await clickButton("Stop generating");
+  await clickButton("Stop Generating");
 });
 
 it("aborts on navigation and reopens the same thread with an empty store", async () => {
@@ -772,7 +777,7 @@ it("aborts on navigation and reopens the same thread with an empty store", async
   fetchMock.mockReturnValueOnce(promise);
   await renderPage();
   await enterMessage("Leaving now");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   await act(() => root.render(null));
   expect(getChatRequest(0).signal.aborted).toBe(true);
   await renderPage();
@@ -782,7 +787,7 @@ it("aborts on navigation and reopens the same thread with an empty store", async
   expect(container.textContent).not.toContain("Late reply");
   expect(getTextarea().value).toBe("");
   await enterMessage("New visit");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   const oldBody = await getChatRequest(0).json();
   const newBody = await getChatRequest(1).json();
   expect(newBody.requestContext).toEqual(oldBody.requestContext);
@@ -793,11 +798,11 @@ it("aborts a pending reply on reset and ignores its late response", async () => 
   fetchMock.mockReturnValueOnce(promise);
   await renderPage();
   await enterMessage("Old conversation");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   await startNewChat();
   expect(getChatRequest(0).signal.aborted).toBe(true);
   await enterMessage("Fresh conversation");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   await act(() => resolve(chatResponse("Stale reply")));
   expect(container.textContent).not.toContain("Stale reply");
   expect(container.textContent).not.toContain("Old conversation");
@@ -824,7 +829,7 @@ it.each(["http", "stream"])(
     );
     await renderPage();
     await enterMessage("Try this");
-    await clickButton("Send message");
+    await clickButton("Send Message");
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Unable to generate a reply."
     );
@@ -846,7 +851,7 @@ it("replaces a failed partial reply on retry without losing the user message", a
   fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
   await renderPage();
   await enterMessage("Try this");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   await act(async () => {
     await writer.write({
       payload: { text: "Partial reply" },
@@ -877,18 +882,18 @@ it("replaces a failed partial reply on retry without losing the user message", a
 it("preserves drafts, history, and the preview across panel toggles", async () => {
   await renderPage();
   await enterMessage("Hello");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   const previewUrlInput = container.querySelector<HTMLInputElement>(
     'input[aria-label="Preview URL"]'
   );
   const messages = container.querySelector('[role="log"]')?.textContent;
   await enterMessage("Unsent draft");
-  await clickButton("Preview");
+  await clickButton("Show Preview");
   expect(getTextarea().value).toBe("Unsent draft");
   expect(container.querySelector('input[aria-label="Preview URL"]')).toBe(
     previewUrlInput
   );
-  await clickButton("Chat");
+  await clickButton("Show Chat");
   expect(getTextarea().value).toBe("Unsent draft");
   expect(container.querySelector('[role="log"]')?.textContent).toBe(messages);
   await startNewChat();
@@ -928,7 +933,7 @@ it("opens the preview from a data-preview chunk and logs sandbox output", async 
   );
   await renderPage();
   await enterMessage("Build it");
-  await clickButton("Send message");
+  await clickButton("Send Message");
 
   expect(container.querySelector("iframe")?.getAttribute("src")).toBe(
     "http://localhost:5174"
@@ -1014,7 +1019,7 @@ it("shows reasoning while the model thinks and folds it away once the answer arr
   fetchMock.mockResolvedValueOnce(mastraResponse(stream.readable));
   await renderPage();
   await enterMessage("Build billing in-house or buy it?");
-  await clickButton("Send message");
+  await clickButton("Send Message");
   await act(async () => {
     await writer.write({ payload: { id: "r1" }, type: "reasoning-start" });
     await writer.write({

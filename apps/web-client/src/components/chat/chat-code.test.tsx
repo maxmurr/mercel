@@ -27,6 +27,11 @@ vi.mock("@streamdown/code", () => ({
   },
 }));
 
+// The real hook subscribes to history; reading location is enough for these tests.
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+
 const threadId = "2a2f7b1c-0d3e-4f5a-8b9c-0d1e2f3a4b5c";
 
 const directories: Record<string, { name: string; type: string }[]> = {
@@ -96,6 +101,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(() => root.unmount());
   container.remove();
+  window.history.replaceState(null, "", "/");
   vi.unstubAllGlobals();
 });
 
@@ -227,7 +233,7 @@ it("shows the selected file with a breadcrumb, line numbers, and themed tokens",
   expect(token?.className).toBe(
     "text-(--shiki-light) dark:text-(--shiki-dark)"
   );
-  const showFiles = container.querySelector('[aria-label="Show files"]');
+  const showFiles = container.querySelector('[aria-label="Show Files"]');
   expect(showFiles?.getAttribute("aria-controls")).toBe("workspace-file-tree");
   expect(container.querySelector("nav")?.id).toBe("workspace-file-tree");
 });

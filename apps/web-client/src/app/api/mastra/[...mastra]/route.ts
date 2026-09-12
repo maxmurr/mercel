@@ -49,6 +49,9 @@ async function authorize(request: Request): Promise<Request | Response> {
   const headers = new Headers(request.headers);
   // The rewritten body is a different length, and the original stream is spent.
   headers.delete("content-length");
+  // The forwarded request carries no abort signal: a run outlives the browser
+  // that started it, so a reload resumes the reply at /api/chat/[threadId]/stream
+  // instead of losing it. Stopping a reply goes to that route as well.
   return new Request(request.url, {
     body: JSON.stringify(
       memory
@@ -60,7 +63,6 @@ async function authorize(request: Request): Promise<Request | Response> {
     ),
     headers,
     method: "POST",
-    signal: request.signal,
   });
 }
 

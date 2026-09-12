@@ -33,13 +33,23 @@ export async function GET(
     return access;
   }
 
-  const memory = await mastra.getAgentById("agent").getMemory();
+  const agent = mastra.getAgentById("agent");
+  // Saves the chat a reconnect request on the threads that have nothing running.
+  const isStreaming = Boolean(
+    agent.getActiveThreadRunId({ resourceId: access.userId, threadId })
+  );
+  const memory = await agent.getMemory();
   if (!(memory && access.thread)) {
-    return Response.json({ messages: [], resourceId: access.userId });
+    return Response.json({
+      isStreaming,
+      messages: [],
+      resourceId: access.userId,
+    });
   }
 
   const { messages } = await memory.recall({ perPage: false, threadId });
   return Response.json({
+    isStreaming,
     messages: withoutDesignBrief(toAISdkMessages(messages, { version: "v7" })),
     resourceId: access.userId,
   });

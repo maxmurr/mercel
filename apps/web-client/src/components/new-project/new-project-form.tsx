@@ -83,13 +83,13 @@ export function NewProjectForm({ className }: { className?: string }) {
     (deploymentFailed ? "Deployment failed. You can deploy again." : "");
   if (statusLookupFailed) {
     deploymentError =
-      "Could not check deployment status. Deployment may still be running. Check status to try again.";
+      "Could not check deployment status. Deployment may still be running. Check Status to try again.";
   }
   let buttonLabel = "Deploy";
   if (isDeploying) {
-    buttonLabel = "Deploying...";
+    buttonLabel = "Deploying…";
   } else if (statusLookupFailed) {
-    buttonLabel = "Check status";
+    buttonLabel = "Check Status";
   }
 
   const handleDeploymentSubmit = useCallback(
@@ -133,7 +133,7 @@ export function NewProjectForm({ className }: { className?: string }) {
         <CardHeader className="gap-4 px-0 sm:px-8">
           <CardTitle>
             <h1
-              className="text-balance font-semibold text-2xl tracking-tight outline-none"
+              className="scroll-mt-4 text-balance rounded-lg font-semibold text-2xl tracking-tight focus:outline-2 focus:outline-ring focus:outline-offset-4"
               ref={headingRef}
               tabIndex={-1}
             >
@@ -184,8 +184,12 @@ export function NewProjectForm({ className }: { className?: string }) {
                   data-icon="inline-start"
                 />
               )}
-              <span aria-live="polite">{buttonLabel}</span>
+              {buttonLabel}
             </Button>
+            {/* A live region of its own: announcing a control's own label re-reads the button. */}
+            <p aria-live="polite" className="sr-only">
+              {buttonLabel}
+            </p>
           </CardFooter>
         )}
       </Card>

@@ -135,6 +135,7 @@ export function ToolPart({
             "flex-1 truncate",
             status === "running" && "shimmer forced-colors:shimmer-none"
           )}
+          translate="no"
         >
           {getToolName(part)}
         </MarkerContent>
@@ -152,19 +153,20 @@ export function ToolPart({
           className="flex flex-wrap items-center justify-between gap-2 pt-2"
           data-slot="tool-approval"
         >
-          <p className="text-muted-foreground text-sm">
+          {/* The request arrives mid-stream, so say so rather than waiting to be noticed. */}
+          <p className="text-muted-foreground text-sm" role="alert">
             Needs your approval before it runs.
           </p>
           <div className="flex gap-2">
             <Button
-              className="min-h-11 sm:min-h-8"
+              className="min-h-11 pointer-fine:min-h-8"
               onClick={handleDecline}
               variant="ghost"
             >
               Decline
             </Button>
             <Button
-              className="min-h-11 sm:min-h-8"
+              className="min-h-11 pointer-fine:min-h-8"
               onClick={handleApprove}
               variant="secondary"
             >

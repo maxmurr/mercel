@@ -40,7 +40,7 @@ export function ChatPreview({
           className="size-11"
           disabled={!url}
           onClick={handlePreviewReload}
-          tooltip="Reload preview"
+          tooltip="Reload Preview"
         >
           <RotateCwIcon />
         </WebPreviewNavigationButton>
@@ -50,7 +50,7 @@ export function ChatPreview({
           disabled={!url}
           nativeButton={false}
           render={<a href={url} rel="noopener noreferrer" target="_blank" />}
-          tooltip="Open preview in new tab"
+          tooltip="Open Preview in New Tab"
         >
           <ExternalLinkIcon />
         </WebPreviewNavigationButton>

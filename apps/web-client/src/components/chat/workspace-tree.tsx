@@ -6,6 +6,7 @@ import {
   type ComponentProps,
   type CSSProperties,
   useCallback,
+  useId,
   useState,
 } from "react";
 import {
@@ -94,7 +95,7 @@ function FileNode({
   return (
     <li>
       <button
-        aria-current={isSelected}
+        aria-current={isSelected ? "true" : undefined}
         className={cn(
           treeRowClass,
           isSelected && "bg-accent text-accent-foreground"
@@ -104,7 +105,9 @@ function FileNode({
         type="button"
       >
         <FileIcon aria-hidden="true" className="size-4 shrink-0" />
-        <span className="truncate">{entry.name}</span>
+        <span className="truncate" translate="no">
+          {entry.name}
+        </span>
       </button>
     </li>
   );
@@ -119,6 +122,7 @@ function DirectoryNode({
   threadId,
 }: TreeNodeProps) {
   const path = childPath(parentPath, entry.name);
+  const contentsId = useId();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleToggle = useCallback(() => {
@@ -128,6 +132,7 @@ function DirectoryNode({
   return (
     <li>
       <button
+        aria-controls={contentsId}
         aria-expanded={isOpen}
         className={treeRowClass}
         onClick={handleToggle}
@@ -141,17 +146,21 @@ function DirectoryNode({
             isOpen && "rotate-90"
           )}
         />
-        <span className="truncate">{entry.name}</span>
+        <span className="truncate" translate="no">
+          {entry.name}
+        </span>
       </button>
-      {isOpen ? (
-        <DirectoryEntries
-          depth={depth + 1}
-          onSelect={onSelect}
-          path={path}
-          selectedPath={selectedPath}
-          threadId={threadId}
-        />
-      ) : null}
+      <div id={contentsId}>
+        {isOpen ? (
+          <DirectoryEntries
+            depth={depth + 1}
+            onSelect={onSelect}
+            path={path}
+            selectedPath={selectedPath}
+            threadId={threadId}
+          />
+        ) : null}
+      </div>
     </li>
   );
 }

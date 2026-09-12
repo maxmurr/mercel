@@ -58,7 +58,7 @@ async function renderSwitcher() {
 
 async function openThemeMenu() {
   const trigger = container.querySelector<HTMLButtonElement>(
-    'button[aria-label="Change theme"]'
+    'button[aria-label="Change Theme"]'
   );
   if (!trigger) {
     throw new Error("Theme switcher trigger not found");

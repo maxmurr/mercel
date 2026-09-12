@@ -5,6 +5,8 @@ import { format } from "date-fns";
 const chatThreadApi = "/api/chat";
 
 export interface ChatThread {
+  /** A reply is still being generated; the chat reconnects to it instead of waiting. */
+  isStreaming: boolean;
   messages: UIMessage[];
   /** Owner Mastra stores the thread under; the chat must send it back to append to it. */
   resourceId: string;
@@ -18,6 +20,22 @@ async function fetchThread(threadId: string): Promise<ChatThread> {
     throw new Error(`Request failed with status ${response.status}`);
   }
   return response.json();
+}
+
+/**
+ * Ends the reply a thread is generating.
+ *
+ * The run outlives the request that started it, so closing the stream in the
+ * browser leaves the model writing; only this reaches it.
+ */
+export async function stopThreadRun(threadId: string): Promise<void> {
+  const response = await fetch(
+    `${chatThreadApi}/${encodeURIComponent(threadId)}/stream`,
+    { method: "DELETE" }
+  );
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
 }
 
 /** Stored conversation for a thread; empty until its first message is saved. */

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback } from "react";
+import { type ComponentProps, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -21,20 +21,26 @@ import {
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
 import { threadLabel, threadListOptions } from "@/lib/chat-thread";
+import { cn } from "@/lib/utils";
 
 const skeletonRows = [0, 1, 2];
 
-function ThreadNotice({ children }: { children: ReactNode }) {
+function ThreadNotice({ className, ...props }: ComponentProps<"p">) {
   return (
-    <p className="px-2 py-1.5 text-base text-muted-foreground sm:text-sm">
-      {children}
-    </p>
+    <p
+      className={cn(
+        "px-2 py-1.5 text-base text-muted-foreground sm:text-sm",
+        className
+      )}
+      {...props}
+    />
   );
 }
 
 function ThreadSkeleton() {
   return (
-    <div aria-label="Loading chats" role="status">
+    <div role="status">
+      <span className="sr-only">Loading chats…</span>
       {skeletonRows.map((row) => (
         <SidebarMenuSkeleton className="h-11 sm:h-8" key={row} />
       ))}
@@ -51,11 +57,16 @@ function ThreadList() {
     data: threads,
     isError,
     isPending,
+    refetch,
   } = useQuery({ ...threadListOptions(), enabled: Boolean(session) });
 
   const handleSelect = useCallback(() => {
     setOpenMobile(false);
   }, [setOpenMobile]);
+
+  const handleRetry = useCallback(() => {
+    refetch();
+  }, [refetch]);
 
   if (isSessionPending) {
     return <ThreadSkeleton />;
@@ -66,7 +77,20 @@ function ThreadList() {
   }
 
   if (isError) {
-    return <ThreadNotice>Could not load your chats.</ThreadNotice>;
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <ThreadNotice role="alert">
+          Could not load your chats. Your conversations are safe — try again.
+        </ThreadNotice>
+        <Button
+          className="mx-2 h-11 sm:h-8"
+          onClick={handleRetry}
+          variant="outline"
+        >
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   if (isPending) {
@@ -108,7 +132,7 @@ export function ThreadSidebar() {
           variant="outline"
         >
           <PlusIcon data-icon="inline-start" />
-          New chat
+          New Chat
         </Button>
       </SidebarHeader>
       <SidebarContent>

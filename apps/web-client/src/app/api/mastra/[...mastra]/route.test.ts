@@ -259,7 +259,7 @@ it.each([
   }
 );
 
-it("forwards chat cancellation to the provider", async () => {
+it("keeps generating after the browser drops the connection", async () => {
   vi.stubEnv("OPENCODE_API_KEY", "test-key");
   const started = Promise.withResolvers<Request>();
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
@@ -288,7 +288,9 @@ it("forwards chat cancellation to the provider", async () => {
   const providerRequest = await started.promise;
   controller.abort();
   await responseText;
-  expect(providerRequest.signal.aborted).toBe(true);
+  // The reply outlives the request so a reload can resume it; ending it early
+  // goes through DELETE /api/chat/[threadId]/stream instead.
+  expect(providerRequest.signal.aborted).toBe(false);
 });
 
 it("rejects missing messages without calling the provider", async () => {

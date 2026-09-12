@@ -16,6 +16,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { useSearchParamState } from "@/hooks/use-search-param";
 import { cn } from "@/lib/utils";
 
 const fileTreeId = "workspace-file-tree";
@@ -33,15 +34,19 @@ function FileHeader({ onShowTree, path }: FileHeaderProps) {
     <div className="flex h-12 shrink-0 items-center gap-1 border-b px-2 sm:h-10">
       <WebPreviewNavigationButton
         aria-controls={fileTreeId}
+        aria-expanded={false}
         className="@lg:hidden size-11 sm:size-9"
         onClick={onShowTree}
         size="icon"
-        tooltip="Show files"
+        tooltip="Show Files"
       >
         <PanelLeftOpenIcon />
       </WebPreviewNavigationButton>
       <Breadcrumb className="min-w-0 flex-1 px-2">
-        <BreadcrumbList className="flex-nowrap text-base sm:text-sm">
+        <BreadcrumbList
+          className="flex-nowrap text-base sm:text-sm"
+          translate="no"
+        >
           {segments.map((segment, index) => {
             const segmentPath = segments.slice(0, index + 1).join("/");
             if (index === segments.length - 1) {
@@ -106,14 +111,19 @@ function WorkspaceEmpty({ title }: { title: string }) {
 /** Browses the agent's sandbox: a lazily loaded file tree beside a read-only, highlighted viewer. */
 function WorkspaceBrowser({ threadId }: { threadId: string }) {
   const rootQuery = useQuery(directoryOptions(threadId, rootPath));
-  const [selectedPath, setSelectedPath] = useState<string>();
+  // The open file travels in the URL so a reload or a shared link reopens it.
+  const [file, setSelectedPath] = useSearchParamState("file", "");
+  const selectedPath = file || undefined;
   // Narrow containers show either the tree or the file; wide ones show both.
   const [isTreeOpen, setIsTreeOpen] = useState(true);
 
-  const handleSelect = useCallback((path: string) => {
-    setSelectedPath(path);
-    setIsTreeOpen(false);
-  }, []);
+  const handleSelect = useCallback(
+    (path: string) => {
+      setSelectedPath(path);
+      setIsTreeOpen(false);
+    },
+    [setSelectedPath]
+  );
 
   const handleShowTree = useCallback(() => {
     setIsTreeOpen(true);

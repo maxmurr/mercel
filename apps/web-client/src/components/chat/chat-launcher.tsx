@@ -58,6 +58,7 @@ export function ChatLauncher({ className }: { className?: string }) {
         <InputGroup>
           <InputGroupTextarea
             aria-label="Describe what you want to create"
+            autoComplete="off"
             className="field-sizing-content scrollbar-subtle max-h-64 min-h-28"
             name="prompt"
             onChange={handleChange}
@@ -67,7 +68,7 @@ export function ChatLauncher({ className }: { className?: string }) {
           />
           <InputGroupAddon align="block-end" className="justify-end">
             <InputGroupButton
-              aria-label="Start building"
+              aria-label="Start Building"
               className="size-11"
               disabled={!value.trim()}
               size="icon-sm"

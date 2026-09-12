@@ -250,6 +250,11 @@ const agentApi = "/api/mastra/agents/agent";
 export function createChatTransport(resourceId: string) {
   return new MastraChatTransport({
     api: `${agentApi}/stream`,
+    // Mastra's own stream route starts a turn; this one re-attaches to the
+    // turn a reload left running, replayed from its first chunk.
+    prepareReconnectToStreamRequest: ({ id }) => ({
+      api: `/api/chat/${encodeURIComponent(id)}/stream`,
+    }),
     prepareSendMessagesRequest: ({ id, messages }) => {
       // threadId picks the thread's own sandbox; without it the agent has nowhere to build.
       const requestContext = { opencodeSessionId: id, threadId: id };

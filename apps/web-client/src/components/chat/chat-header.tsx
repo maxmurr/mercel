@@ -28,10 +28,11 @@ export function ChatHeader({ className, threadId }: ChatHeaderProps) {
       )}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <SidebarTrigger aria-label="Toggle chats" className="size-11" />
+        <SidebarTrigger aria-label="Toggle Chats" className="size-11" />
         <Separator className="h-6" orientation="vertical" />
-        <h1 className="truncate font-medium text-sm">
-          {thread ? threadLabel(thread) : "New chat"}
+        {/* The agent retitles the thread mid-conversation, so announce the new name. */}
+        <h1 aria-live="polite" className="truncate font-medium text-sm">
+          {thread ? threadLabel(thread) : "New Chat"}
         </h1>
       </div>
       <div className="flex shrink-0 items-center gap-2">

@@ -245,4 +245,23 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+  /* Skips the 300ms double-tap delay and the grey flash iOS paints over taps. */
+  a,
+  button,
+  input,
+  label,
+  select,
+  summary,
+  textarea,
+  [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Keeps full-height layouts clear of the home indicator and the landscape notch. */
+@utility inset-safe {
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
 }

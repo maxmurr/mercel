@@ -184,7 +184,7 @@ export function ChatConversation({ className }: { className?: string }) {
             {messageIds.length === 0 ? (
               <MessageScrollerItem messageId="empty">
                 <EmptyState
-                  description="Ask a question or describe what you'd like to build."
+                  description="Ask a question or describe what you’d like to build."
                   icon={<MessageSquareIcon />}
                   title="What can we build together?"
                 />
@@ -198,7 +198,7 @@ export function ChatConversation({ className }: { className?: string }) {
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton
-          aria-label="Scroll to latest message"
+          aria-label="Scroll to Latest Message"
           behavior="instant"
           className="size-11 motion-reduce:transition-none"
         />

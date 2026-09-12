@@ -1,5 +1,6 @@
 import { ChatLauncher } from "@/components/chat/chat-launcher";
 import { ThreadSidebar } from "@/components/chat/thread-sidebar";
+import { mainContentId } from "@/components/skip-link";
 import {
   SidebarInset,
   SidebarProvider,
@@ -12,9 +13,13 @@ export default function ChatPage() {
   return (
     <SidebarProvider className="isolate min-h-dvh bg-background text-foreground antialiased">
       <ThreadSidebar />
-      <SidebarInset className="min-h-dvh">
+      <SidebarInset
+        className="inset-safe min-h-dvh"
+        id={mainContentId}
+        tabIndex={-1}
+      >
         <div className="flex shrink-0 items-center gap-2 p-4 sm:px-6">
-          <SidebarTrigger aria-label="Toggle chats" className="size-11" />
+          <SidebarTrigger aria-label="Toggle Chats" className="size-11" />
           <div className="flex flex-1 items-center justify-end gap-2">
             <UserMenu />
           </div>

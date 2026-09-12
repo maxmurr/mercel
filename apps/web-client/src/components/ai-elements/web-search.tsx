@@ -37,7 +37,7 @@ export function WebSearchPart({
         <MarkerIcon>
           <TriangleAlertIcon />
         </MarkerIcon>
-        <MarkerContent>Web search failed</MarkerContent>
+        <MarkerContent>Web search failed. Ask again to retry it.</MarkerContent>
       </Marker>
     );
   }

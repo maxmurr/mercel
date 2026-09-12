@@ -71,7 +71,7 @@ it("shows the account monogram and details, then signs out", async () => {
   expect(menu?.textContent).toContain("Ada Lovelace");
   expect(menu?.textContent).toContain("ada@example.com");
 
-  await act(() => menuItemWithText("Sign out").click());
+  await act(() => menuItemWithText("Sign Out").click());
   expect(signOut).toHaveBeenCalledOnce();
   expect(push).toHaveBeenCalledWith("/sign-in");
 });

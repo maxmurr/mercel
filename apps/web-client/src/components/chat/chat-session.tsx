@@ -57,6 +57,8 @@ function ChatConnection({
         .invalidateQueries({ queryKey: threadListKey })
         .catch(() => undefined);
     },
+    // A reply the server is still writing streams on, whichever tab left it running.
+    resume: thread.isStreaming,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     // Batch tokens to keep streamed code blocks below React's update-depth limit.
     throttle: 50,

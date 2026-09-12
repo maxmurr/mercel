@@ -114,7 +114,7 @@ export function UserMenu() {
         </DropdownMenuSub>
         <DropdownMenuItem className="min-h-11" onClick={signOut}>
           <LogOutIcon aria-hidden="true" />
-          Sign out
+          Sign Out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

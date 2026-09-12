@@ -12,13 +12,15 @@ export function SitePreview({ className, href, title }: SitePreviewProps) {
   return (
     <div
       className={cn(
-        "relative flex flex-col overflow-hidden rounded-lg border focus-within:ring-3 focus-within:ring-ring/50",
+        // The link covers the card, so the card carries its ring — keyboard focus only.
+        "relative flex flex-col overflow-hidden rounded-lg border has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
         className
       )}
     >
       <iframe
         aria-hidden="true"
         className="scheme-only-dark pointer-events-none aspect-video w-full border-0"
+        loading="lazy"
         referrerPolicy="no-referrer"
         sandbox="allow-scripts allow-same-origin"
         scrolling="no"

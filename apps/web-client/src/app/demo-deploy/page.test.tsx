@@ -217,7 +217,7 @@ it("blocks rapid clicks and repeated submits while upload is pending, then polls
   expect(
     container.querySelector<HTMLInputElement>('input[name="repoUrl"]')?.disabled
   ).toBe(true);
-  expect(button?.textContent).toBe("Deploying...");
+  expect(button?.textContent).toBe("Deploying…");
   expect(button?.getAttribute("aria-busy")).toBe("true");
   expect(button?.querySelector('[data-slot="spinner"]')).not.toBeNull();
   expect(container.querySelector("iframe")).toBeNull();
@@ -343,7 +343,7 @@ it("keeps form instances and deployment IDs independent and handles immediate co
   ).toEqual(["abc12", "def34"]);
   expect(container.querySelectorAll("iframe")).toHaveLength(1);
   expect(container.querySelector("button[form]")?.textContent).toBe(
-    "Deploying..."
+    "Deploying…"
   );
 });
 
@@ -359,7 +359,7 @@ it.each(["cloning", "uploading"])(
     await advanceTime(2000);
     expect(getStatusCalls()).toHaveLength(2);
     expect(container.querySelector("button[form]")?.textContent).toBe(
-      "Deploying..."
+      "Deploying…"
     );
     expect(container.querySelector("iframe")).toBeNull();
   }
@@ -460,7 +460,7 @@ it("recovers from a transient status error without another POST", async () => {
   await enterRepository();
   await clickButton();
   expect(container.querySelector("button[form]")?.textContent).toBe(
-    "Deploying..."
+    "Deploying…"
   );
   await advanceTime(1000);
   expect(container.querySelector("iframe")).not.toBeNull();
@@ -484,7 +484,7 @@ it("pauses after two status retries, then checks same ID and resumes polling wit
     "may still be running"
   );
   expect(container.querySelector("button[form]")?.textContent).toBe(
-    "Check status"
+    "Check Status"
   );
   expect(
     container.querySelector<HTMLInputElement>('input[name="repoUrl"]')?.disabled
@@ -500,7 +500,7 @@ it("pauses after two status retries, then checks same ID and resumes polling wit
   await clickButton();
   expect(container.querySelector('[role="alert"]')).toBeNull();
   expect(container.querySelector("button[form]")?.textContent).toBe(
-    "Deploying..."
+    "Deploying…"
   );
   await advanceTime(2000);
   expect(container.querySelector("iframe")).not.toBeNull();
@@ -533,7 +533,7 @@ it.each([404, 422, "unknown", "invalid-json"])(
     await advanceTime(10_000);
     expect(getStatusCalls()).toHaveLength(1);
     expect(container.querySelector("button[form]")?.textContent).toBe(
-      "Check status"
+      "Check Status"
     );
     expect(container.querySelector("iframe")).toBeNull();
   }

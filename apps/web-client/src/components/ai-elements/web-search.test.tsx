@@ -65,7 +65,7 @@ it.each([
     { errorText: "Rate limited", input, state: "output-error" } as const,
     "failed",
     "lucide-triangle-alert",
-    "Web search failed",
+    "Web search failed. Ask again to retry it.",
   ],
 ])("shows %o as %s", async (state, status, icon, label) => {
   await act(() => root.render(<WebSearchPart part={{ ...base, ...state }} />));
