@@ -33,7 +33,9 @@ export async function GET(
       return Response.json({ entries: await filesystem.readdir(path) });
     }
     if (action === "read") {
-      return Response.json({ content: await filesystem.readFile(path) });
+      return Response.json({
+        content: await filesystem.readFile(path, { encoding: "utf8" }),
+      });
     }
     return Response.json(
       { error: `Unknown action: ${action}` },
