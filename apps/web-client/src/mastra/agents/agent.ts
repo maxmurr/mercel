@@ -42,6 +42,34 @@ const maxSteps = 40;
 /** Turns replayed into the model's context; the UI still reloads the whole thread. */
 const lastMessages = 20;
 
+/** OpenCode Go routes by session header and identifies the client by User-Agent. */
+function openCodeModel(sessionId: string) {
+  return {
+    headers: {
+      "User-Agent": "mercel/0.1.0",
+      "x-opencode-session": sessionId,
+    },
+    id: "opencode-go/glm-5.3-flash" as const,
+  };
+}
+
+/**
+ * Naming a thread runs outside the conversation it names: its own routing
+ * session keeps the coding session's context from bleeding into the name.
+ */
+const titleModel = () => openCodeModel(randomUUID());
+
+/**
+ * Mastra hands the title model the whole transcript, the assistant's reply
+ * included, and its default prompt lets a small model echo that reply back as
+ * the title. Naming what was asked for, and nothing else, is the fix.
+ */
+const titleInstructions = `You name a conversation between a user and an assistant.
+- Name what the user asked for, never what the assistant did, built, or said.
+- Never copy, quote, or summarise the assistant's reply.
+- At most six words, no markdown, no quotes, no colons, no trailing period.
+- Return the name and nothing else.`;
+
 /** Reuse request context across turns to keep the OpenCode routing session stable. */
 export const agent = new Agent({
   defaultOptions: {
@@ -54,18 +82,17 @@ export const agent = new Agent({
   // Storage comes from the Mastra instance, so threads land in the app's Postgres.
   // Titles are generated after the turn, so the sidebar can name a thread without
   // slowing the reply down.
-  memory: new Memory({ options: { generateTitle: true, lastMessages } }),
+  memory: new Memory({
+    options: {
+      generateTitle: { instructions: titleInstructions, model: titleModel },
+      lastMessages,
+    },
+  }),
   model: ({ requestContext }) => {
     const sessionId = requestContext.get("opencodeSessionId") ?? randomUUID();
     requestContext.set("opencodeSessionId", sessionId);
 
-    return {
-      headers: {
-        "User-Agent": "mercel/0.1.0",
-        "x-opencode-session": sessionId,
-      },
-      id: "opencode-go/glm-5.3-flash",
-    };
+    return openCodeModel(sessionId);
   },
   name: "Agent",
   requestContextSchema: z.object({

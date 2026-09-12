@@ -106,6 +106,34 @@ it.each([undefined, "86d8bb97-5293-47c7-9c19-1b53bbf6b17d"])(
   }
 );
 
+it("names threads with its own instructions and a session of its own", async () => {
+  const memory = await mastra.getAgentById("agent").getMemory();
+  const { generateTitle } = memory?.getMergedThreadConfig() ?? {};
+
+  if (typeof generateTitle !== "object") {
+    throw new Error("Title generation is not configured");
+  }
+  expect(generateTitle.instructions).toContain(
+    "Never copy, quote, or summarise the assistant's reply."
+  );
+
+  const { model } = generateTitle;
+  if (typeof model !== "function") {
+    throw new Error("Title model is not resolved per request");
+  }
+  const sessionHeaderOf = () => {
+    const resolved = model({ mastra, requestContext: new RequestContext() });
+    if (typeof resolved !== "object" || !("headers" in resolved)) {
+      throw new Error("Title model resolved without OpenCode headers");
+    }
+    return resolved.headers?.["x-opencode-session"];
+  };
+
+  const [first, second] = [sessionHeaderOf(), sessionHeaderOf()];
+  expect(first).toBeTruthy();
+  expect(second).not.toBe(first);
+});
+
 it("merges Exa MCP tools with the built-in tools", async () => {
   const tools = await mastra.getAgentById("agent").listTools();
 
