@@ -8,25 +8,14 @@ import {
   WORKSPACE_TOOLS,
   Workspace,
 } from "@mastra/core/workspace";
-import { MCPClient } from "@mastra/mcp";
 import { z } from "zod";
+import { exa } from "../tools/exa";
 
 /** Shared root for file tools and shell commands, resolved from process.cwd(). */
 const workspaceDir = ".sandbox";
 
-/** Exa hosted MCP (web_search_exa, web_fetch_exa). Free plan without a key; EXA_API_KEY lifts rate limits. */
-const exa = new MCPClient({
-  servers: {
-    exa: {
-      requestInit: {
-        headers: process.env.EXA_API_KEY
-          ? { "x-api-key": process.env.EXA_API_KEY }
-          : {},
-      },
-      url: new URL("https://mcp.exa.ai/mcp"),
-    },
-  },
-});
+/** Repo-root Agent Skills (`SKILL.md` dirs), resolved from process.cwd() like workspaceDir. */
+const skillsDir = "../../.agents/skills";
 
 /** Reuse request context across turns to keep the OpenCode routing session stable. */
 export const agent = new Agent({
@@ -51,6 +40,7 @@ export const agent = new Agent({
   requestContextSchema: z.object({
     opencodeSessionId: z.uuid().optional(),
   }),
+  skills: [skillsDir],
   // ponytail: one tools/list round trip to Exa per run; memoize if latency shows.
   tools: async () => ({
     web_fetch: webFetchTool,
