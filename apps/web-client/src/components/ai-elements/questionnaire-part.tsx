@@ -8,7 +8,7 @@ import type {
 import { CheckIcon } from "lucide-react";
 import { type FormEvent, useCallback, useState } from "react";
 import type { z } from "zod";
-import { ToolPart } from "@/components/ai-elements/tool";
+import { isHiddenToolPart } from "@/components/ai-elements/tool";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
 import {
@@ -179,18 +179,14 @@ export function QuestionnairePart({
   onApprovalResponse?: ChatAddToolApproveResponseFunction | undefined;
   part: ToolUIPart | DynamicToolUIPart;
 }) {
-  const input = questionnaireInputSchema.safeParse(part.input).data;
-  if (
-    part.state === "output-error" ||
-    part.state === "output-denied" ||
-    (!input && part.state !== "input-streaming")
-  ) {
-    return <ToolPart part={part} />;
+  if (isHiddenToolPart(part)) {
+    return null;
   }
+  const input = questionnaireInputSchema.safeParse(part.input).data;
   if (part.state === "output-available" && input) {
     const output = questionnaireOutputSchema.safeParse(part.output).data;
     if (!output) {
-      return <ToolPart part={part} />;
+      return null;
     }
     return (
       <Bubble className="max-w-full" variant="outline">

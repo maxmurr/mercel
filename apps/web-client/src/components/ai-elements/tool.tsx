@@ -24,6 +24,11 @@ import {
 } from "@/components/ui/collapsible";
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  isQuestionnairePart,
+  questionnaireInputSchema,
+  questionnaireOutputSchema,
+} from "@/features/chat/chat-questionnaire";
 import { cn } from "@/lib/utils";
 
 type ToolPartValue = ToolUIPart | DynamicToolUIPart;
@@ -87,6 +92,15 @@ const hiddenTools = new Set([
 
 /** True for calls a reader gains nothing from; the conversation drops those parts. */
 export function isHiddenToolPart(part: ToolPartValue) {
+  if (isQuestionnairePart(part) && part.state !== "input-streaming") {
+    return (
+      part.state === "output-error" ||
+      part.state === "output-denied" ||
+      !questionnaireInputSchema.safeParse(part.input).success ||
+      (part.state === "output-available" &&
+        !questionnaireOutputSchema.safeParse(part.output).success)
+    );
+  }
   return hiddenTools.has(getToolName(part));
 }
 

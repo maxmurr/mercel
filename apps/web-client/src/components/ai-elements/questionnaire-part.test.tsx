@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { QuestionnairePart } from "@/components/ai-elements/questionnaire-part";
+import { isHiddenToolPart } from "@/components/ai-elements/tool";
 
 const input = {
   questions: [
@@ -78,6 +79,8 @@ async function click(selector: string) {
 
 it("validates steps, keeps previous answers, supports multi-select and skips optional text", async () => {
   await render();
+  expect(isHiddenToolPart(pending)).toBe(false);
+  expect(container.querySelector('[data-slot="tool-part"]')).toBeNull();
   expect(container.querySelector('[role="progressbar"]')?.textContent).toBe(
     "Question 1 of 3"
   );
@@ -122,6 +125,44 @@ it("validates steps, keeps previous answers, supports multi-select and skips opt
     },
   });
 });
+
+it.each([
+  {
+    input: {
+      questions: Array.from({ length: 9 }, (_, index) => ({
+        id: `question-${index}`,
+        label: "Question",
+        question: "Choose?",
+        type: "text",
+      })),
+    },
+    output: {
+      error: true,
+      message: "Tool input validation failed for ask_user.",
+    },
+    state: "output-available",
+  },
+  { input, output: { error: true }, state: "output-available" },
+  { errorText: "Tool failed", input, state: "output-error" },
+  {
+    approval: { approved: false, id: "approval-1" },
+    input,
+    state: "output-denied",
+  },
+] as const)(
+  "hides raw ask_user diagnostics without leaving a visible chat part: $state",
+  async (result) => {
+    const part: DynamicToolUIPart = {
+      ...result,
+      toolCallId: "failed-call",
+      toolName: "ask_user",
+      type: "dynamic-tool",
+    };
+    expect(isHiddenToolPart(part)).toBe(true);
+    await render(part);
+    expect(container.childElementCount).toBe(0);
+  }
+);
 
 it("handles numbered shortcuts only inside the questionnaire", async () => {
   await render();
