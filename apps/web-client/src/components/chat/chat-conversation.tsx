@@ -5,8 +5,13 @@ import {
   useMessageById,
   useMessageIds,
 } from "@ai-sdk-tools/store";
-import { isToolUIPart, type UIMessage } from "ai";
+import {
+  type ChatAddToolApproveResponseFunction,
+  isToolUIPart,
+  type UIMessage,
+} from "ai";
 import { MessageSquareIcon } from "lucide-react";
+import { createContext, useContext } from "react";
 import { Streamdown } from "streamdown";
 import { Reasoning } from "@/components/ai-elements/reasoning";
 import { ToolPart } from "@/components/ai-elements/tool";
@@ -30,6 +35,10 @@ import { Spinner } from "@/components/ui/spinner";
 const streamdownClassName =
   "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
 
+/** The chat store keeps this off its state, so the connection hands it down for pending tool approvals. */
+export const ToolApprovalContext =
+  createContext<ChatAddToolApproveResponseFunction | null>(null);
+
 function AssistantPart({
   isStreaming,
   part,
@@ -37,11 +46,16 @@ function AssistantPart({
   isStreaming: boolean;
   part: UIMessage["parts"][number];
 }) {
+  const respondToApproval = useContext(ToolApprovalContext);
+
   if (isToolUIPart(part)) {
     return isWebSearchPart(part) ? (
       <WebSearchPart part={part} />
     ) : (
-      <ToolPart part={part} />
+      <ToolPart
+        onApprovalResponse={respondToApproval ?? undefined}
+        part={part}
+      />
     );
   }
   if (part.type !== "text" && part.type !== "reasoning") {

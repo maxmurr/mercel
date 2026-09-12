@@ -124,3 +124,75 @@ it("expands to a copyable code block showing the output, the error, or the input
   });
   expect(code()).toBe('{  "url": "https://example.com"}');
 });
+
+it("keeps the arguments open and offers approve or decline while approval is pending", async () => {
+  const onApprovalResponse = vi.fn();
+  const approvalRequested = {
+    approval: { id: "run-1::call-1" },
+    input,
+    state: "approval-requested",
+    type: "dynamic-tool",
+    ...base,
+  } as const;
+  await act(() =>
+    root.render(
+      <ToolPart
+        onApprovalResponse={onApprovalResponse}
+        part={approvalRequested}
+      />
+    )
+  );
+  expect(
+    container
+      .querySelector('[data-slot="tool-part"]')
+      ?.getAttribute("data-status")
+  ).toBe("pending");
+  expect(trigger().getAttribute("aria-expanded")).toBe("true");
+  expect(code()).toBe('{  "url": "https://example.com"}');
+
+  const buttons = [
+    ...container.querySelectorAll<HTMLButtonElement>(
+      '[data-slot="tool-approval"] button'
+    ),
+  ];
+  expect(buttons.map((button) => button.textContent)).toEqual([
+    "Decline",
+    "Approve",
+  ]);
+  await act(() => buttons[1]?.click());
+  expect(onApprovalResponse).toHaveBeenLastCalledWith({
+    approved: true,
+    id: "run-1::call-1",
+  });
+  await act(() => buttons[0]?.click());
+  expect(onApprovalResponse).toHaveBeenLastCalledWith({
+    approved: false,
+    id: "run-1::call-1",
+  });
+
+  await render({
+    approval: { approved: true, id: "run-1::call-1" },
+    input,
+    state: "approval-responded",
+    type: "dynamic-tool",
+    ...base,
+  });
+  expect(
+    container
+      .querySelector('[data-slot="tool-part"]')
+      ?.getAttribute("data-status")
+  ).toBe("running");
+  expect(container.querySelector('[data-slot="tool-approval"]')).toBeNull();
+});
+
+it("renders a pending approval read-only without a handler", async () => {
+  await render({
+    approval: { id: "run-1::call-1" },
+    input,
+    state: "approval-requested",
+    type: "dynamic-tool",
+    ...base,
+  });
+  expect(container.querySelector('[data-slot="tool-approval"]')).toBeNull();
+  expect(trigger().getAttribute("aria-expanded")).toBe("false");
+});

@@ -7,30 +7,46 @@ import {
   useChatError,
   useChatStore,
 } from "@ai-sdk-tools/store";
-import { useCallback, useEffect } from "react";
+import { lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
+import { type ReactNode, useCallback, useEffect } from "react";
 import { ChatComposer } from "@/components/chat/chat-composer";
-import { ChatConversation } from "@/components/chat/chat-conversation";
+import {
+  ChatConversation,
+  ToolApprovalContext,
+} from "@/components/chat/chat-conversation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { MastraChatTransport } from "@/lib/mastra-chat-transport";
+import {
+  MastraChatTransport,
+  toolApprovalRequest,
+} from "@/lib/mastra-chat-transport";
 import { takePendingPrompt } from "@/lib/pending-prompt";
 import { handleSandboxData } from "@/lib/sandbox-store";
 
+const agentApi = "/api/mastra/agents/agent";
+
 const chatTransport = new MastraChatTransport({
-  api: "/api/mastra/agents/agent/stream",
-  prepareSendMessagesRequest: ({ id, messages }) => ({
-    body: {
-      messages,
-      requestContext: { opencodeSessionId: id },
-    },
-  }),
+  api: `${agentApi}/stream`,
+  prepareSendMessagesRequest: ({ id, messages }) => {
+    const requestContext = { opencodeSessionId: id };
+    // An answered approval resumes the suspended run instead of starting a new turn.
+    const approval = toolApprovalRequest(messages);
+    if (approval) {
+      return {
+        api: `${agentApi}/${approval.route}`,
+        body: { ...approval.body, requestContext },
+      };
+    }
+    return { body: { messages, requestContext } };
+  },
 });
 
 // Keep the full useChat subscription out of the layout and selector consumers.
-function ChatConnection({ id }: { id: string }) {
-  const { stop } = useChat({
+function ChatConnection({ children, id }: { children: ReactNode; id: string }) {
+  const { addToolApprovalResponse, stop } = useChat({
     id,
     onData: handleSandboxData,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     // Batch tokens to keep streamed code blocks below React's update-depth limit.
     throttle: 50,
     transport: chatTransport,
@@ -43,7 +59,11 @@ function ChatConnection({ id }: { id: string }) {
     [stop]
   );
 
-  return null;
+  return (
+    <ToolApprovalContext value={addToolApprovalResponse}>
+      {children}
+    </ToolApprovalContext>
+  );
 }
 
 // Waits for the transport before claiming the prompt, so a slow mount can't drop it.
@@ -97,11 +117,12 @@ function ChatError() {
 export function ChatSession({ id }: { id: string }) {
   return (
     <Provider>
-      <ChatConnection id={id} />
-      <ChatLaunchPrompt id={id} />
-      <ChatConversation className="flex-1" />
-      <ChatError />
-      <ChatComposer />
+      <ChatConnection id={id}>
+        <ChatLaunchPrompt id={id} />
+        <ChatConversation className="flex-1" />
+        <ChatError />
+        <ChatComposer />
+      </ChatConnection>
     </Provider>
   );
 }

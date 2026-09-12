@@ -9,8 +9,9 @@ import {
   ShieldXIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { CodeBlock, CodeBlockCopyButton } from "streamdown";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
@@ -53,7 +54,6 @@ function statusOf(part: ToolPartValue): Status {
     case "output-denied":
       return "denied";
     case "approval-requested":
-    case "approval-responded":
       return "pending";
     default:
       return "running";
@@ -75,22 +75,52 @@ function payloadOf(part: ToolPartValue) {
   };
 }
 
+interface ToolPartProps {
+  className?: string;
+  /** Answers a pending approval; omit to render approval requests read-only. */
+  onApprovalResponse?:
+    | ((response: {
+        approved: boolean;
+        id: string;
+      }) => void | PromiseLike<void>)
+    | undefined;
+  part: ToolPartValue;
+}
+
 /** Shows one tool call as a marker row; expanding prints its input or result as a copyable code block. */
 export function ToolPart({
   className,
+  onApprovalResponse,
   part,
-}: {
-  className?: string;
-  part: ToolPartValue;
-}) {
+}: ToolPartProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const status = statusOf(part);
   const { code, language } = payloadOf(part);
+  const approvalId =
+    part.state === "approval-requested" && onApprovalResponse
+      ? part.approval.id
+      : undefined;
+
+  const handleDecline = useCallback(() => {
+    if (approvalId) {
+      onApprovalResponse?.({ approved: false, id: approvalId });
+    }
+  }, [approvalId, onApprovalResponse]);
+
+  const handleApprove = useCallback(() => {
+    if (approvalId) {
+      onApprovalResponse?.({ approved: true, id: approvalId });
+    }
+  }, [approvalId, onApprovalResponse]);
 
   return (
     <Collapsible
       className={cn("flex w-full min-w-0 flex-col", className)}
       data-slot="tool-part"
       data-status={status}
+      onOpenChange={setIsOpen}
+      // Keep the arguments in view until the user decides; nobody should approve a call they can't read.
+      open={isOpen || approvalId !== undefined}
     >
       <Marker
         className={cn(
@@ -117,6 +147,32 @@ export function ToolPart({
           <CodeBlockCopyButton />
         </CodeBlock>
       </CollapsibleContent>
+      {approvalId ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 pt-2"
+          data-slot="tool-approval"
+        >
+          <p className="text-muted-foreground text-sm">
+            Needs your approval before it runs.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              className="min-h-11 sm:min-h-8"
+              onClick={handleDecline}
+              variant="ghost"
+            >
+              Decline
+            </Button>
+            <Button
+              className="min-h-11 sm:min-h-8"
+              onClick={handleApprove}
+              variant="secondary"
+            >
+              Approve
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </Collapsible>
   );
 }

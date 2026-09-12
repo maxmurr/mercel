@@ -1,10 +1,16 @@
 import { type ParseResult, parseJsonEventStream } from "@ai-sdk/provider-utils";
-import { HttpChatTransport, type UIMessage, type UIMessageChunk } from "ai";
+import {
+  HttpChatTransport,
+  isToolUIPart,
+  type UIMessage,
+  type UIMessageChunk,
+} from "ai";
 import { z } from "zod";
 
 const mastraChunkSchema = z.object({
   data: z.unknown().optional(),
   payload: z.unknown().optional(),
+  runId: z.string().optional(),
   type: z.string(),
 });
 type MastraChunk = z.infer<typeof mastraChunkSchema>;
@@ -25,6 +31,35 @@ const toolPayloadSchema = z.object({
 });
 
 type PartKind = "text" | "reasoning";
+
+// Mastra's own convention: pack the run into the approval id so the answer can find the suspended run.
+const approvalIdSeparator = "::";
+
+/** Builds the approve or decline request for the tool call the user just answered, if there is one. */
+export function toolApprovalRequest(messages: UIMessage[]) {
+  const lastMessage = messages.at(-1);
+  if (lastMessage?.role !== "assistant") {
+    return;
+  }
+  // ponytail: resumes one call per request; a second pending approval re-prompts once the first resumes.
+  for (const part of lastMessage.parts) {
+    if (!isToolUIPart(part) || part.state !== "approval-responded") {
+      continue;
+    }
+    const separatorIndex = part.approval.id.indexOf(approvalIdSeparator);
+    if (separatorIndex === -1) {
+      continue;
+    }
+    return {
+      body: {
+        reason: part.approval.reason,
+        runId: part.approval.id.slice(0, separatorIndex),
+        toolCallId: part.toolCallId,
+      },
+      route: part.approval.approved ? "approve-tool-call" : "decline-tool-call",
+    };
+  }
+}
 
 const partChunkKinds: Record<string, PartKind | undefined> = {
   "reasoning-delta": "reasoning",
@@ -58,7 +93,11 @@ function errorText(error: unknown) {
 }
 
 /** Maps one native Mastra tool chunk onto the AI SDK tool chunks the chat store understands. */
-function toolChunks(type: string, payload: unknown): UIMessageChunk[] {
+function toolChunks(
+  type: string,
+  payload: unknown,
+  runId: string | undefined
+): UIMessageChunk[] {
   const parsed = toolPayloadSchema.safeParse(payload);
   if (!parsed.success) {
     return [];
@@ -94,7 +133,13 @@ function toolChunks(type: string, payload: unknown): UIMessageChunk[] {
           toolName,
           type: "tool-input-available",
         },
-        { approvalId: toolCallId, toolCallId, type: "tool-approval-request" },
+        {
+          approvalId: runId
+            ? `${runId}${approvalIdSeparator}${toolCallId}`
+            : toolCallId,
+          toolCallId,
+          type: "tool-approval-request",
+        },
       ];
     case "tool-result":
       return tool.isError
@@ -150,7 +195,7 @@ export class MastraChatTransport extends HttpChatTransport<UIMessage> {
               cause: chunk.error,
             });
           }
-          const { type, payload } = chunk.value;
+          const { type, payload, runId } = chunk.value;
           if (type === "error") {
             throw new Error("Mastra chat stream failed");
           }
@@ -164,7 +209,7 @@ export class MastraChatTransport extends HttpChatTransport<UIMessage> {
             return;
           }
           if (type.startsWith("tool-")) {
-            for (const toolChunk of toolChunks(type, payload)) {
+            for (const toolChunk of toolChunks(type, payload, runId)) {
               controller.enqueue(toolChunk);
             }
             return;
