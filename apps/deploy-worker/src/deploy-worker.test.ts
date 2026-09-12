@@ -119,11 +119,13 @@ await writeFile("dist/.nojekyll", "");
 await symlink("index.html", "dist/link.html");`)
       );
     }
+    files.set("dist/abc12/stale.html", Buffer.from("<h1>Gone</h1>"));
     const shutdownDownload = Promise.withResolvers<ServerResponse>();
     const prefixes: string[] = [];
     const statusesDuringDownload: string[] = [];
     const uploadedFiles = new Map<string, Buffer>();
     const uploadRequests: string[] = [];
+    const deletedKeys: string[] = [];
     let failedKey = "output/ghi56/second.txt";
     const s3Server = createServer(async (request, response) => {
       const url = new URL(request.url ?? "/", "http://localhost");
@@ -148,6 +150,13 @@ await symlink("index.html", "dist/link.html");`)
       const requestedKey = decodeURIComponent(url.pathname).slice(
         "/test-bucket/".length
       );
+      if (request.method === "DELETE") {
+        deletedKeys.push(requestedKey);
+        files.delete(requestedKey);
+        response.writeHead(204);
+        response.end();
+        return;
+      }
       if (request.method === "PUT") {
         uploadRequests.push(requestedKey);
         const contents = await buffer(request);
@@ -238,7 +247,13 @@ await symlink("index.html", "dist/link.html");`)
       "completed",
       "completed",
     ]);
-    expect(prefixes).toEqual(["output/abc12/", "output/def34/"]);
+    expect(prefixes).toEqual([
+      "output/abc12/",
+      "dist/abc12/",
+      "output/def34/",
+      "dist/def34/",
+    ]);
+    expect(deletedKeys).toEqual(["dist/abc12/stale.html"]);
     expect(await statusOf("abc12")).toBe("completed");
     expect(await statusOf("def34")).toBe("completed");
     await queuedJob.remove();
@@ -471,10 +486,14 @@ await symlink("index.html", "dist/link.html");`)
     await sql`ALTER TABLE unavailable_deployments RENAME TO deployments`;
     expect(prefixes).toEqual([
       "output/abc12/",
+      "dist/abc12/",
       "output/def34/",
+      "dist/def34/",
       "output/ghi56/",
       "output/ghi56/",
+      "dist/ghi56/",
       "output/ghi56/",
+      "dist/ghi56/",
       "output/ghi56/",
       "output/empty/",
     ]);

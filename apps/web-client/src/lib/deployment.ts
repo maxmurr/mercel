@@ -70,14 +70,21 @@ export function getDeploymentPreviewUrl(id: string) {
  * Starts one deployment from a gzipped tarball of the project root; callers
  * must not automatically retry this non-idempotent request. Runs on the server,
  * where the files are; the browser goes through `publishWorkspace`.
+ *
+ * Passing the ID of an earlier deployment republishes it in place, so the site
+ * keeps the URL that has already been shared.
  */
-export async function startDeployment(archive: Blob) {
+export async function startDeployment(archive: Blob, id?: string) {
   const uploadServer = readDeploymentOrigin(
     process.env.NEXT_PUBLIC_UPLOAD_SERVER_URL ?? "http://localhost:3000"
   );
   getPreviewBaseUrl();
   const body = new FormData();
   body.append("archive", archive, "source.tar.gz");
+  if (id) {
+    validateDeploymentId(id);
+    body.append("id", id);
+  }
 
   try {
     const response = await fetch(new URL("/deploy", uploadServer), {
@@ -85,6 +92,12 @@ export async function startDeployment(archive: Blob) {
       credentials: "omit",
       method: "POST",
     });
+    if (response.status === 409) {
+      throw new Error(
+        "This site is already publishing. Wait for it to finish, then publish again.",
+        { cause: response.status }
+      );
+    }
     if (!response.ok) {
       throw new Error(
         `Deployment could not be started (HTTP ${response.status}).`,

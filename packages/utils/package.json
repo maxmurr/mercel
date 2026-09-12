@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./build-app": "./src/build-app.ts",
+    "./delete-folder-from-s3": "./src/delete-folder-from-s3.ts",
     "./download-folder-from-s3": "./src/download-folder-from-s3.ts",
     "./file-paths": "./src/file-paths.ts",
     "./id": "./src/id.ts",

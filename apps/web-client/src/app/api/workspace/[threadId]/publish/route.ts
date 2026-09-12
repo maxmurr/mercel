@@ -32,7 +32,11 @@ export async function POST(
         { status: 404 }
       );
     }
-    const deployment = await startDeployment(archive);
+    const published = access.thread?.metadata?.deploymentId;
+    const deployment = await startDeployment(
+      archive,
+      typeof published === "string" ? published : undefined
+    );
     if (access.thread) {
       const memory = await mastra.getAgentById("agent").getMemory();
       await memory?.updateThread({

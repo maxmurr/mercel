@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLinkIcon, UploadIcon } from "lucide-react";
 import { type RefObject, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,8 @@ interface PublishButtonProps {
 export function PublishButton({ deploymentId, threadId }: PublishButtonProps) {
   // Guards a second click before the mutation's pending state has rendered.
   const inFlight: RefObject<boolean> = useRef(false);
-  const failureShownFor = useRef<string>(undefined);
+  const failureShownFor = useRef<number>(undefined);
+  const queryClient = useQueryClient();
   const publish = useMutation({
     mutationFn: () => publishWorkspace(threadId),
     onError: (error) => {
@@ -34,6 +35,9 @@ export function PublishButton({ deploymentId, threadId }: PublishButtonProps) {
     },
     onSettled: () => {
       inFlight.current = false;
+    },
+    onSuccess: ({ id }) => {
+      queryClient.setQueryData(deploymentStatusOptions(id).queryKey, "cloning");
     },
     retry: false,
   });
@@ -53,7 +57,7 @@ export function PublishButton({ deploymentId, threadId }: PublishButtonProps) {
         !hasFailed &&
         (!lookupFailed || status.isFetching))
   );
-  let label = "Publish";
+  let label = deployment ? "Republish" : "Publish";
   if (isPublishing) {
     label = "Publishing…";
   } else if (lookupFailed) {
@@ -72,12 +76,12 @@ export function PublishButton({ deploymentId, threadId }: PublishButtonProps) {
     await refetch();
   }, [refetch]);
 
-  const started = publish.data;
+  const started = publish.data ? publish.submittedAt : undefined;
   useEffect(() => {
-    if (!(started && hasFailed) || failureShownFor.current === started.id) {
+    if (!(started && hasFailed) || failureShownFor.current === started) {
       return;
     }
-    failureShownFor.current = started.id;
+    failureShownFor.current = started;
     toast.add({
       description: "The build did not complete. Publish again to retry.",
       title: "Publish failed",

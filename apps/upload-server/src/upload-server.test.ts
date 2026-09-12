@@ -91,6 +91,29 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
   const s3Server = createServer(async (request, response) => {
     const body = await buffer(request);
     const url = new URL(request.url ?? "/", "http://localhost");
+    if (url.searchParams.get("list-type") === "2") {
+      const folder = `/test-bucket/${url.searchParams.get("prefix") ?? ""}`;
+      response.writeHead(200, { "Content-Type": "application/xml" });
+      response.end(
+        `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+        <IsTruncated>false</IsTruncated>
+        ${[...uploads.keys()]
+          .filter((key) => key.startsWith(folder))
+          .map(
+            (key) =>
+              `<Contents><Key>${key.slice("/test-bucket/".length)}</Key></Contents>`
+          )
+          .join("")}
+      </ListBucketResult>`
+      );
+      return;
+    }
+    if (request.method === "DELETE") {
+      uploads.delete(decodeURIComponent(url.pathname));
+      response.writeHead(204);
+      response.end();
+      return;
+    }
     const uploadId = url.pathname.split("/")[3] ?? "";
     queuedDuringUpload.push(await redis.exists(`bull:jobs:${uploadId}`));
     if (request.method === "PUT") {
@@ -168,12 +191,15 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     const archivePath = join(workspace, "source.tar.gz");
     spawnSync("tar", ["-czf", archivePath, "-C", sourceDirectory, "."]);
     const archive = bun.file(archivePath);
-    const archiveForm = (file: Blob | string) => {
+    const archiveForm = (file: Blob | string, republishId?: string) => {
       const form = new FormData();
       if (typeof file === "string") {
         form.append("archive", file);
       } else {
         form.append("archive", file, "source.tar.gz");
+      }
+      if (republishId) {
+        form.append("id", republishId);
       }
       return form;
     };
@@ -235,11 +261,15 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
             format: "binary",
             type: "string",
           }),
+          id: expect.objectContaining({
+            pattern: idPattern.source,
+            type: "string",
+          }),
         },
         required: ["archive"],
       })
     );
-    for (const status of ["200", "500"]) {
+    for (const status of ["200", "409", "500"]) {
       expect(spec).toHaveProperty(
         [
           "paths",
@@ -419,6 +449,57 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     expect(removedStatus.status).toBe(200);
     expect(await removedStatus.json()).toEqual({ status: "completed" });
     await worker.close();
+
+    await writeFile(join(sourceDirectory, "README.md"), "# Republished\n");
+    await rm(join(sourceDirectory, "nested"), { recursive: true });
+    const republishPath = join(workspace, "republish.tar.gz");
+    spawnSync("tar", ["-czf", republishPath, "-C", sourceDirectory, "."]);
+    const republish = await fetch(new URL("/deploy", baseUrl), {
+      body: archiveForm(bun.file(republishPath), id),
+      method: "POST",
+    });
+
+    expect(republish.status).toBe(200);
+    expect(await republish.json()).toEqual({ id });
+    expect(await readdir(outputDirectory)).toEqual([id]);
+    expect(await relativePaths(extractedDirectory)).toEqual([
+      ".hidden",
+      "README.md",
+    ]);
+    expect(
+      [...uploads.keys()]
+        .filter((key) => key.startsWith(`/test-bucket/output/${id}/`))
+        .sort()
+    ).toEqual([
+      `/test-bucket/output/${id}/.hidden`,
+      `/test-bucket/output/${id}/README.md`,
+    ]);
+    expect(uploads.get(`/test-bucket/output/${id}/README.md`)?.toString()).toBe(
+      "# Republished\n"
+    );
+    expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([id]);
+    const republishedStatus = await fetch(new URL(`/status?id=${id}`, baseUrl));
+    expect(await republishedStatus.json()).toEqual({ status: "waiting" });
+
+    const conflict = await fetch(new URL("/deploy", baseUrl), {
+      body: archiveForm(bun.file(republishPath), id),
+      method: "POST",
+    });
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toEqual({ id });
+    expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([id]);
+    expect(
+      await database
+        .select({ status: deployments.status })
+        .from(deployments)
+        .where(eq(deployments.id, id))
+    ).toEqual([{ status: "waiting" }]);
+    await redis.del(`bull:jobs:${id}`);
+    await redis.del("bull:jobs:wait");
+    await database
+      .update(deployments)
+      .set({ status: "completed" })
+      .where(eq(deployments.id, id));
 
     uploadsUntilFailure = 1;
     const failedUpload = await fetch(new URL("/deploy", baseUrl), {

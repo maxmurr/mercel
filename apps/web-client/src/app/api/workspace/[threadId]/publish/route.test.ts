@@ -119,6 +119,26 @@ it("passes the upload server's refusal back to the browser", async () => {
   });
 });
 
+it("republishes the thread's deployment in place so its URL keeps working", async () => {
+  writeThreadFiles({ "index.html": "<!doctype html>" });
+  fetchMock.mockResolvedValue(Response.json({ id: "abc12" }));
+  const memory = await mastra.getAgentById("agent").getMemory();
+  if (!memory) {
+    throw new Error("Agent has no memory.");
+  }
+  await memory.createThread({
+    metadata: { deploymentId: "abc12" },
+    resourceId: signedInUserId,
+    threadId,
+  });
+
+  expect((await publish()).status).toBe(200);
+
+  const [, init] = fetchMock.mock.calls[0] ?? [];
+  const body = init?.body instanceof FormData ? init.body : undefined;
+  expect(body?.get("id")).toBe("abc12");
+});
+
 it("remembers the deployment on the thread so the site reopens later", async () => {
   writeThreadFiles({ "index.html": "<!doctype html>" });
   fetchMock.mockResolvedValue(Response.json({ id: "abc12" }));

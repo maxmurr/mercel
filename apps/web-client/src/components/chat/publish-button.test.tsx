@@ -116,11 +116,36 @@ it("publishes once per click, then polls until the site is live", async () => {
   expect(link?.getAttribute("target")).toBe("_blank");
   expect(link?.getAttribute("rel")).toBe("noopener noreferrer");
   expect(publishButton().disabled).toBe(false);
-  expect(publishButton().textContent).toBe("Publish");
+  expect(publishButton().textContent).toBe("Republish");
 
   await advanceTime(10_000);
   expect(statusCalls()).toHaveLength(2);
   expect(publishCalls()).toHaveLength(1);
+});
+
+it("republishes the live site in place and follows the new build", async () => {
+  fetchMock
+    .mockResolvedValueOnce(Response.json({ status: "completed" }))
+    .mockResolvedValueOnce(Response.json({ id: "abc12" }))
+    .mockResolvedValueOnce(Response.json({ status: "active" }))
+    .mockResolvedValue(Response.json({ status: "completed" }));
+  await renderButton("abc12");
+  await advanceTime();
+  expect(publishButton().textContent).toBe("Republish");
+
+  await clickPublish();
+
+  expect(publishCalls()).toHaveLength(1);
+  expect(publishButton().textContent).toBe("Publishing…");
+  await advanceTime(2000);
+  expect(publishButton().textContent).toBe("Publishing…");
+
+  await advanceTime(2000);
+  expect(statusCalls()).toHaveLength(3);
+  expect(container.querySelector("a")?.href).toBe(
+    "http://abc12.localhost:3001/"
+  );
+  expect(publishButton().textContent).toBe("Republish");
 });
 
 it("reports a failed build and lets the user publish again", async () => {

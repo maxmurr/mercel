@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { cors } from "@elysia/cors";
 import { openapi } from "@elysia/openapi";
@@ -6,12 +6,13 @@ import { workbench } from "@getworkbench/elysia";
 import { postgresDb } from "@repo/db/database";
 import { markDeploymentFailed } from "@repo/db/deployments";
 import { deployments } from "@repo/db/schema";
+import { deleteFolderFromS3 } from "@repo/utils/delete-folder-from-s3";
 import { generateId, idPattern } from "@repo/utils/id";
 import {
   type UploadFolderProgress,
   uploadFolderToS3,
 } from "@repo/utils/upload-folder-to-s3";
-import { createNodeRedisClient, Queue } from "bullmq";
+import { createNodeRedisClient, type Job, Queue } from "bullmq";
 import { $ } from "bun";
 import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
@@ -52,11 +53,20 @@ jobQueue.on("error", (error: Error) =>
 );
 await jobQueue.waitUntilReady();
 
+const unfinishedJobStates: readonly string[] = [
+  "active",
+  "delayed",
+  "prioritized",
+  "waiting",
+  "waiting-children",
+];
+
 /**
  * Unpacks a gzipped tarball into the directory. tar itself keeps members inside
  * it: leading slashes are stripped and `..` components refused.
  */
 async function extractArchive(archive: File, directoryPath: string) {
+  await rm(directoryPath, { force: true, recursive: true });
   await mkdir(directoryPath, { recursive: true });
   try {
     await $`tar -xz -C ${directoryPath} < ${archive}`.quiet();
@@ -80,14 +90,33 @@ new Elysia()
   .post(
     "/deploy",
     async ({ body, log, status }) => {
-      const id = generateId();
+      const id = body.id ?? generateId();
       const sourceDirectory = join("output/upload", id);
       let progress: UploadFolderProgress | undefined;
       let deploymentCreated = false;
 
-      log.set({ action: "deploy", id, stage: "extract" });
+      log.set({
+        action: "deploy",
+        id,
+        republish: Boolean(body.id),
+        stage: "extract",
+      });
+      let previous: Job | undefined;
       try {
-        await postgresDb.insert(deployments).values({ id, status: "cloning" });
+        previous = body.id ? await jobQueue.getJob(id) : undefined;
+        if (
+          previous &&
+          unfinishedJobStates.includes(await previous.getState())
+        ) {
+          return status(409, { id });
+        }
+        await postgresDb
+          .insert(deployments)
+          .values({ id, status: "cloning" })
+          .onConflictDoUpdate({
+            set: { status: "cloning" },
+            target: deployments.id,
+          });
         deploymentCreated = true;
         await extractArchive(body.archive, sourceDirectory);
         log.set({ stage: "scan" });
@@ -95,6 +124,7 @@ new Elysia()
           .update(deployments)
           .set({ status: "uploading" })
           .where(eq(deployments.id, id));
+        await deleteFolderFromS3({ prefix: `output/${id}` });
         progress = await uploadFolderToS3({
           directoryPath: sourceDirectory,
           onProgress: (update) => {
@@ -109,6 +139,9 @@ new Elysia()
           .update(deployments)
           .set({ status: "waiting" })
           .where(eq(deployments.id, id));
+        // BullMQ keeps a finished job under its ID and would treat the
+        // republish as a duplicate, so drop it before queueing the new build.
+        await previous?.remove();
         await jobQueue.add("deploy", { uploadId: id }, { jobId: id });
         log.set({ stage: "complete" });
         return { id };
@@ -131,9 +164,17 @@ new Elysia()
           description:
             "Gzipped tarball of the project root, without node_modules.",
         }),
+        id: t.Optional(
+          t.String({
+            description:
+              "Republishes this existing deployment in place, keeping its URL.",
+            pattern: idPattern.source,
+          })
+        ),
       }),
       response: {
         200: t.Object({ id: t.String() }),
+        409: t.Object({ id: t.String() }),
         500: t.Object({ id: t.String() }),
       },
     }

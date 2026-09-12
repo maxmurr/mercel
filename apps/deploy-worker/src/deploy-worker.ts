@@ -4,6 +4,7 @@ import { postgresDb } from "@repo/db/database";
 import { markDeploymentFailed } from "@repo/db/deployments";
 import { deployments } from "@repo/db/schema";
 import { buildApp } from "@repo/utils/build-app";
+import { deleteFolderFromS3 } from "@repo/utils/delete-folder-from-s3";
 import { downloadFolderFromS3 } from "@repo/utils/download-folder-from-s3";
 import { idPattern } from "@repo/utils/id";
 import {
@@ -83,6 +84,7 @@ const jobWorker = new Worker<unknown, number>(
       log.set({ stage: "build" });
       await buildApp({ directoryPath });
       log.set({ stage: "upload" });
+      await deleteFolderFromS3({ prefix: `dist/${uploadId}` });
       progress = await uploadFolderToS3({
         directoryPath: join(directoryPath, "dist"),
         onProgress: (update) => {
