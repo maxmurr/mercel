@@ -25,9 +25,9 @@ import {
   startContainer,
 } from "@repo/utils/test-helpers";
 import { Worker } from "bullmq";
+import bun from "bun";
 import { eq } from "drizzle-orm";
 import { createClient } from "redis";
-import { simpleGit } from "simple-git";
 import { expect, test } from "vitest";
 
 const UPLOAD_SERVER_PATH = fileURLToPath(
@@ -122,7 +122,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
   assert(address && typeof address !== "string");
 
   const workspace = await mkdtemp(join(tmpdir(), "mercel-deploy-"));
-  const repoUrl = join(workspace, "source");
+  const sourceDirectory = join(workspace, "source");
   const server = spawn("bun", [UPLOAD_SERVER_PATH], {
     cwd: workspace,
     env: {
@@ -157,24 +157,26 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
   const errorLines = createInterface({ input: stderr })[Symbol.asyncIterator]();
 
   try {
-    await mkdir(repoUrl);
-    await writeFile(join(repoUrl, "README.md"), "# Test repository\n");
-    await mkdir(join(repoUrl, "nested"));
+    await mkdir(sourceDirectory);
+    await writeFile(join(sourceDirectory, "README.md"), "# Test project\n");
+    await mkdir(join(sourceDirectory, "nested"));
     await writeFile(
-      join(repoUrl, "nested", "file with spaces.bin"),
+      join(sourceDirectory, "nested", "file with spaces.bin"),
       Buffer.from([0, 255, 1])
     );
-    await writeFile(join(repoUrl, ".hidden"), "");
-    await simpleGit(repoUrl, {
-      config: [
-        "user.name=Test",
-        "user.email=test@example.com",
-        "commit.gpgsign=false",
-      ],
-    })
-      .init()
-      .add(".")
-      .commit("Initial commit");
+    await writeFile(join(sourceDirectory, ".hidden"), "");
+    const archivePath = join(workspace, "source.tar.gz");
+    spawnSync("tar", ["-czf", archivePath, "-C", sourceDirectory, "."]);
+    const archive = bun.file(archivePath);
+    const archiveForm = (file: Blob | string) => {
+      const form = new FormData();
+      if (typeof file === "string") {
+        form.append("archive", file);
+      } else {
+        form.append("archive", file, "source.tar.gz");
+      }
+      return form;
+    };
 
     const startup = await readLogEvent(
       lines,
@@ -224,12 +226,17 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
         "post",
         "requestBody",
         "content",
-        "application/json",
+        "multipart/form-data",
         "schema",
       ],
       expect.objectContaining({
-        properties: { repoUrl: expect.objectContaining({ type: "string" }) },
-        required: ["repoUrl"],
+        properties: {
+          archive: expect.objectContaining({
+            format: "binary",
+            type: "string",
+          }),
+        },
+        required: ["archive"],
       })
     );
     for (const status of ["200", "500"]) {
@@ -273,18 +280,18 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
 
     await Promise.all(
       [
-        undefined,
         null,
-        [],
-        {},
-        "repo",
-        { repoUrl: "" },
-        { repoUrl: null },
-        { repoUrl: 42 },
+        JSON.stringify({}),
+        JSON.stringify({ archive: "source.tar.gz" }),
+        new FormData(),
+        archiveForm("source.tar.gz"),
       ].map(async (body) => {
         const result = await fetch(new URL("/deploy", baseUrl), {
-          body: body === undefined ? null : JSON.stringify(body),
-          headers: { "Content-Type": "application/json" },
+          body,
+          headers:
+            body instanceof FormData
+              ? undefined
+              : { "Content-Type": "application/json" },
           method: "POST",
         });
         expect(result.status).toBe(422);
@@ -294,8 +301,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([]);
 
     const deploy = await fetch(new URL("/deploy", baseUrl), {
-      body: JSON.stringify({ repoUrl }),
-      headers: { "Content-Type": "application/json" },
+      body: archiveForm(archive),
       method: "POST",
     });
     expect(deploy.status).toBe(200);
@@ -321,18 +327,23 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     expect(id).toMatch(idPattern);
     expect(deployResponse).toEqual({ id });
     expect(await readdir(outputDirectory)).toEqual([id]);
-    const cloneDirectory = join(outputDirectory, id);
-    expect(deployEvent).not.toHaveProperty("repoUrl");
+    const extractedDirectory = join(outputDirectory, id);
     expect(deployEvent).not.toHaveProperty("filePaths");
     expect(deployEvent).not.toHaveProperty("currentKey");
-    expect(await readFile(join(cloneDirectory, "README.md"), "utf8")).toBe(
-      "# Test repository\n"
+    expect(await readFile(join(extractedDirectory, "README.md"), "utf8")).toBe(
+      "# Test project\n"
     );
-    expect(await simpleGit(cloneDirectory).revparse(["HEAD"])).toBe(
-      await simpleGit(repoUrl).revparse(["HEAD"])
+    const relativePaths = async (directoryPath: string) =>
+      (await getFilePaths({ directoryPath }))
+        .map((filePath) => relative(directoryPath, filePath))
+        .sort();
+    expect(await relativePaths(extractedDirectory)).toEqual(
+      await relativePaths(sourceDirectory)
     );
 
-    const filePaths = await getFilePaths({ directoryPath: cloneDirectory });
+    const filePaths = await getFilePaths({
+      directoryPath: extractedDirectory,
+    });
     expect(uploads.size).toBe(filePaths.length);
     expect(deployEvent).toMatchObject({
       fileCount: filePaths.length,
@@ -344,7 +355,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     });
     await Promise.all(
       filePaths.map(async (filePath) => {
-        const key = `/test-bucket/output/${id}/${relative(cloneDirectory, filePath).split(sep).join("/")}`;
+        const key = `/test-bucket/output/${id}/${relative(extractedDirectory, filePath).split(sep).join("/")}`;
         expect(uploads.get(key)).toEqual(await readFile(filePath));
       })
     );
@@ -411,8 +422,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
 
     uploadsUntilFailure = 1;
     const failedUpload = await fetch(new URL("/deploy", baseUrl), {
-      body: JSON.stringify({ repoUrl }),
-      headers: { "Content-Type": "application/json" },
+      body: archiveForm(archive),
       method: "POST",
     });
     expect(failedUpload.status).toBe(500);
@@ -450,8 +460,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     expect(failedUploadEvent).not.toHaveProperty("filePaths");
 
     const failedDeploy = await fetch(new URL("/deploy", baseUrl), {
-      body: JSON.stringify({ repoUrl: join(workspace, "missing-repo") }),
-      headers: { "Content-Type": "application/json" },
+      body: archiveForm(new Blob(["not a tarball"])),
       method: "POST",
     });
     expect(failedDeploy.status).toBe(500);
@@ -466,46 +475,24 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
       0
     );
     expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([]);
-    const failedCloneStatus = await fetch(
+    const failedExtractStatus = await fetch(
       new URL(`/status?id=${failedDeployBody.id}`, baseUrl)
     );
-    expect(await failedCloneStatus.json()).toEqual({ status: "failed" });
-    const failedCloneEvent = await readLogEvent(
+    expect(await failedExtractStatus.json()).toEqual({ status: "failed" });
+    const failedExtractEvent = await readLogEvent(
       errorLines,
       (event) => event.id === failedDeployBody.id && event.action === "deploy"
     );
-    expect(failedCloneEvent).toMatchObject({
+    expect(failedExtractEvent).toMatchObject({
+      error: { message: expect.stringContaining("Archive extraction failed") },
       level: "error",
-      stage: "clone",
+      stage: "extract",
       status: 500,
       uploadedBytes: 0,
       uploadedCount: 0,
     });
-    expect(failedCloneEvent).not.toHaveProperty("currentKey");
-    expect(failedCloneEvent).not.toHaveProperty("fileCount");
-
-    const credentialUrl = SECRET_URL.replace(
-      "https://deploy:demo-secret%21suffix@example.com",
-      `http://deploy:demo-secret%21suffix@127.0.0.1:${address.port}`
-    );
-    const failedCredentialClone = await fetch(new URL("/deploy", baseUrl), {
-      body: JSON.stringify({ repoUrl: credentialUrl }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    expect(failedCredentialClone.status).toBe(500);
-    const credentialBody = await failedCredentialClone.json();
-    assert(
-      credentialBody !== null &&
-        typeof credentialBody === "object" &&
-        "id" in credentialBody
-    );
-    const credentialEvent = await readLogEvent(
-      errorLines,
-      (event) => event.id === credentialBody.id && event.action === "deploy"
-    );
-    expect(credentialEvent).toMatchObject({ stage: "clone", status: 500 });
-    expect(credentialEvent).not.toHaveProperty("repoUrl");
+    expect(failedExtractEvent).not.toHaveProperty("currentKey");
+    expect(failedExtractEvent).not.toHaveProperty("fileCount");
     for (const secret of ["demo-secret", "demo-query-token", "demo-fragment"]) {
       expect(output).not.toContain(secret);
     }
@@ -521,8 +508,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     });
     uploadsUntilFailure = Number.POSITIVE_INFINITY;
     const redisFailedDeploy = await fetch(new URL("/deploy", baseUrl), {
-      body: JSON.stringify({ repoUrl }),
-      headers: { "Content-Type": "application/json" },
+      body: archiveForm(archive),
       method: "POST",
     });
     expect(redisFailedDeploy.status).toBe(500);
@@ -559,8 +545,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     });
     const uploadsBeforeDatabaseFailure = uploads.size;
     const databaseFailedDeploy = await fetch(new URL("/deploy", baseUrl), {
-      body: JSON.stringify({ repoUrl }),
-      headers: { "Content-Type": "application/json" },
+      body: archiveForm(archive),
       method: "POST",
     });
     expect(databaseFailedDeploy.status).toBe(500);

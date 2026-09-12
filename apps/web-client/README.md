@@ -158,8 +158,8 @@ that started them. The agent can stop them with `kill_process` while the server
 process that spawned them is alive; after a Next.js restart or HMR reload of the
 agent module they are orphaned, so kill
 stray `vite` processes yourself. `open_preview` reads the URL from the process
-it is given, so a new server on another port still previews correctly. Persistent history, approvals UI, and
-Publish are not connected.
+it is given, so a new server on another port still previews correctly. Persistent history and approvals UI are
+not connected.
 
 The adapter handles routing, validation, errors, and request cancellation. Its
 default body limit is 4.5 MB. Configure it with `server.bodySizeLimit` on the
@@ -214,22 +214,31 @@ workspace routes, and the sandbox logs all answer `401` without a session and
 are not gated; a signed-out visitor can open them, and every request they make
 is refused.
 
-## Deploy and preview
+## Publish and preview
 
-The `/demo-deploy` page submits the public GitHub repository URL you enter to the
-upload API, and its default branch is deployed.
-The button shows a spinner and `Deploying...` while the server clones and uploads
-source, then while the browser polls `/status?id=...` every two seconds. Only
-`completed` shows congratulations and a live preview. Click anywhere on the
-preview card to open the site in a new tab. The preview requests dark mode for
-sites that support `prefers-color-scheme`.
+**Publish** in the chat header deploys the thread's sandbox. The browser calls
+`POST /api/workspace/[threadId]/publish`
+(`src/app/api/workspace/[threadId]/publish/route.ts`), gated like the other
+thread routes. The route archives `.sandbox/<threadId>` with `tar`, leaving out
+`node_modules` and `dist`, posts the gzipped tarball to the upload API's
+`POST /deploy` as the multipart `archive` field, and returns the deployment ID.
+The archive is held in memory and capped at 64 MiB compressed.
+`src/lib/deployment.ts` owns that request, the ID validation, the preview URL,
+and the status poller both sides share as `deploymentStatusOptions`.
+
+The button shows a spinner and `Publishing…` while the archive uploads, then
+while the browser polls `/status?id=...` every two seconds. Only `completed`
+adds an **Open site** link to the deployment's URL, opened in a new tab. A
+thread that has not run anything yet has no directory and answers `404`, shown
+as a toast. Publishing again after edits starts a new deployment with a new ID;
+the earlier one stays online.
 
 Follow the root [README](../../README.md#run) to configure PostgreSQL, Redis,
 S3, the bucket, and migrations. Run `bun run dev` from the repository root to
-start the frontend and all three backend services. The worker also needs Git's
-cloned project to build with Node.js and npm compatible with its Vite version.
-Build settings remain fixed: repository root, `npm ci --include=dev`,
-`npm run build`, and `dist/` output.
+start the frontend and all three backend services. The worker builds the
+archive in a throwaway Docker container with fixed settings: project root,
+`npm ci --include=dev`, `npm run build`, and `dist/` output, so the sandbox
+must keep its `package-lock.json`.
 
 Local endpoints work without extra web configuration. To override them:
 
@@ -239,7 +248,7 @@ cp apps/web-client/.env.example apps/web-client/.env.local
 
 | Public variable | Default | Purpose |
 | --- | --- | --- |
-| `NEXT_PUBLIC_UPLOAD_SERVER_URL` | `http://localhost:3000` | Upload and status API origin |
+| `NEXT_PUBLIC_UPLOAD_SERVER_URL` | `http://localhost:3000` | Upload API origin; the publish route posts to it from the server, the browser polls status from it |
 | `NEXT_PUBLIC_PREVIEW_BASE_URL` | `http://localhost:3001` | Preview base origin, before the deployment subdomain |
 
 Set HTTP(S) origins without credentials, paths, queries, or fragments. Preview
@@ -260,19 +269,19 @@ Next.js embeds public variables during `next build`; set them before building
 and rebuild when they change. Turbo already infers `NEXT_PUBLIC_*` variables and
 includes web `.env*` files in build inputs.
 
-Failed deployments allow an explicit new Deploy. Temporary status failures retry
-twice, then pause with `Check status`, which checks the same deployment without
-starting another job. POST requests never auto-retry. If a POST response is lost,
-the outcome is unknown and a new Deploy may create another job.
+A failed build re-enables **Publish**. Temporary status failures retry twice,
+then pause with `Check status`, which checks the same deployment without
+starting another job. The publish request never auto-retries. If its response
+is lost, the outcome is unknown and publishing again may create another job.
 
 Leaving or refreshing the page stops frontend observation, not the backend job.
 No deployment history or refresh recovery is stored. A stopped worker leaves the
 job queued until it starts. Backend crashes or failed database writes can leave
 a stale status; the UI does not invent a timeout or completion state.
 
-Only deploy trusted repositories. Install/build scripts execute on the worker
-host without a sandbox; this frontend does not make the backend safe for public,
-untrusted use.
+The upload API accepts archives from anyone who can reach it; only this app's
+route checks who owns the thread. Keep the upload server off the public internet
+until it authenticates callers.
 
 ```sh
 bun run check --filter=web-client

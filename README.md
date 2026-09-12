@@ -68,11 +68,14 @@ disabled. Before enabling credentials, replace `origin: "*"` in
 ## API docs
 
 Open `http://localhost:3000/openapi` to test requests in Scalar. Select
-`POST /deploy` and send a JSON body with a nonempty `repoUrl` string. It clones
-the repository with `simple-git` into `output/upload/<id>` relative to the server's
-working directory, lists its files, then uploads each file to `S3_BUCKET` using
-keys `output/<id>/<relative-file-path>`, without a leading slash. Nested
-paths and hidden files, including `.git`, are preserved; symlinks are skipped.
+`POST /deploy` and send a `multipart/form-data` body whose `archive` field is a
+gzipped tarball of the project root, such as `tar -czf source.tar.gz -C my-app .`.
+It extracts the archive with the host's `tar` into `output/upload/<id>` relative
+to the server's working directory, lists its files, then uploads each file to
+`S3_BUCKET` using keys `output/<id>/<relative-file-path>`, without a leading
+slash. Nested paths and hidden files are preserved; symlinks are skipped, and
+`tar` drops absolute paths and `..` members. Leave `node_modules` out of the
+archive; the worker installs dependencies itself.
 Configure `apps/upload-server/.env` using its `.env.example` and create the
 bucket first.
 
@@ -82,7 +85,7 @@ and deploy worker persist deployment status in PostgreSQL's `deployments` table.
 BullMQ still manages queue execution and the Workbench dashboard.
 
 The endpoint returns `200` with `{ "id": "<id>" }` only after the queue publish
-succeeds. Database, clone, file-scan, upload, or Redis failures return `500` with the
+succeeds. Database, extraction, file-scan, upload, or Redis failures return `500` with the
 generated `id`; files already uploaded remain in S3. Invalid request bodies
 return `422` before an ID is generated. The OpenAPI JSON spec is at `/openapi/json`.
 
@@ -99,7 +102,8 @@ GET /status?id=abc12
 ```
 
 Every poll reads PostgreSQL, not Redis. Responses include `Cache-Control: no-store`.
-The upload server records `cloning`, then `uploading`, then `waiting` before
+The upload server records `cloning` (a name kept from the Git-clone era; it
+covers extraction), then `uploading`, then `waiting` before
 publishing the job. The worker records `active` when each attempt starts and
 `completed` only after every built file uploads. Either process records `failed`
 when its work fails, including failures before a job exists. A failure only
@@ -127,14 +131,14 @@ path, status, duration, and request ID. Output is pretty-printed in development
 and JSON when `NODE_ENV=production`.
 
 `POST /deploy` logs `action: "deploy"`, the generated `id`, and its final `stage`:
-`clone`, `scan`, `upload`, `publish`, or `complete`. After scanning, `fileCount`
+`extract`, `scan`, `upload`, `publish`, or `complete`. After scanning, `fileCount`
 records the number of files. `uploadedCount` and `uploadedBytes` count only
 successful uploads, including when a later upload or queue publish fails.
 Upload failures also include `currentKey`, the failed S3 object key.
 
-Submitted repository URLs and full file lists are not logged. Redaction runs in
-all environments before console output or drains, masking `repoUrl` fields and
-URL, query, and fragment text in errors and other log strings. Startup emits a
+Full file lists are not logged. Redaction runs in all environments before
+console output or drains, masking URL, query, and fragment text in errors and
+other log strings. Startup emits a
 structured `server_start` event with `hostname` and `port`.
 
 Helpers called during a request can access the same logger without passing route

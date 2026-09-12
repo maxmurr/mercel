@@ -1,8 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { UploadIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { PublishButton } from "@/components/chat/publish-button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
@@ -36,10 +35,7 @@ export function ChatHeader({ className, threadId }: ChatHeaderProps) {
         </h1>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <Button className="h-11" variant="default">
-          <UploadIcon data-icon="inline-start" />
-          Publish
-        </Button>
+        <PublishButton threadId={threadId} />
         <UserMenu />
       </div>
     </header>

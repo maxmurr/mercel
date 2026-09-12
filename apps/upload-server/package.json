@@ -23,8 +23,7 @@
     "drizzle-orm": "catalog:",
     "elysia": "catalog:",
     "evlog": "catalog:",
-    "redis": "^6.2.1",
-    "simple-git": "^3.36.0"
+    "redis": "^6.2.1"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

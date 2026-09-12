@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { cors } from "@elysia/cors";
 import { openapi } from "@elysia/openapi";
@@ -11,18 +12,17 @@ import {
   uploadFolderToS3,
 } from "@repo/utils/upload-folder-to-s3";
 import { createNodeRedisClient, Queue } from "bullmq";
+import { $ } from "bun";
 import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { initLogger, log as logger } from "evlog";
 import { evlog } from "evlog/elysia";
 import { createClient } from "redis";
-import { simpleGit } from "simple-git";
 
 initLogger({
   env: { service: "mercel-upload-server" },
   redact: {
-    paths: ["repoUrl"],
-    // Git and SDK errors can echo credential URLs, or paths with query tokens.
+    // SDK errors can echo endpoint URLs, or paths with query tokens.
     patterns: [/\b[a-z][a-z\d+.-]*:\/\/\S+/gi, /[?#]\S+/g],
   },
 });
@@ -52,6 +52,25 @@ jobQueue.on("error", (error: Error) =>
 );
 await jobQueue.waitUntilReady();
 
+/**
+ * Unpacks a gzipped tarball into the directory. tar itself keeps members inside
+ * it: leading slashes are stripped and `..` components refused.
+ */
+async function extractArchive(archive: File, directoryPath: string) {
+  await mkdir(directoryPath, { recursive: true });
+  try {
+    await $`tar -xz -C ${directoryPath} < ${archive}`.quiet();
+  } catch (error) {
+    if (error instanceof $.ShellError) {
+      throw new Error(
+        `Archive extraction failed: ${error.stderr.toString().trim()}`,
+        { cause: error }
+      );
+    }
+    throw error;
+  }
+}
+
 new Elysia()
   .use(evlog())
   .use(cors({ credentials: false, origin: "*" }))
@@ -62,22 +81,22 @@ new Elysia()
     "/deploy",
     async ({ body, log, status }) => {
       const id = generateId();
-      const cloneDirectory = join("output/upload", id);
+      const sourceDirectory = join("output/upload", id);
       let progress: UploadFolderProgress | undefined;
       let deploymentCreated = false;
 
-      log.set({ action: "deploy", id, stage: "clone" });
+      log.set({ action: "deploy", id, stage: "extract" });
       try {
         await postgresDb.insert(deployments).values({ id, status: "cloning" });
         deploymentCreated = true;
-        await simpleGit().clone(body.repoUrl, cloneDirectory);
+        await extractArchive(body.archive, sourceDirectory);
         log.set({ stage: "scan" });
         await postgresDb
           .update(deployments)
           .set({ status: "uploading" })
           .where(eq(deployments.id, id));
         progress = await uploadFolderToS3({
-          directoryPath: cloneDirectory,
+          directoryPath: sourceDirectory,
           onProgress: (update) => {
             progress = update;
             log.set({ stage: "upload" });
@@ -108,9 +127,9 @@ new Elysia()
     },
     {
       body: t.Object({
-        repoUrl: t.String({
-          examples: ["https://github.com/example/repo.git"],
-          minLength: 1,
+        archive: t.File({
+          description:
+            "Gzipped tarball of the project root, without node_modules.",
         }),
       }),
       response: {

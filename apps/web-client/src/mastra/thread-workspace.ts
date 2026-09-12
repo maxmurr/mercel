@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import { cpSync, existsSync } from "node:fs";
 import { basename } from "node:path";
+import { promisify } from "node:util";
 import { LocalFilesystem, LocalSandbox } from "@mastra/core/workspace";
 
 /** Root holding every thread's directory, resolved from process.cwd(). */
@@ -11,6 +13,11 @@ const templateDir = "templates/vite-react";
 // The launcher mints thread ids with crypto.randomUUID(), and they become directory names.
 const threadIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const execFileAsync = promisify(execFile);
+
+/** Largest archive publishing holds in memory; a project without node_modules is far smaller. */
+const archiveMaxBytes = 64 * 1024 * 1024;
 
 // Lives on globalThis so the agent and the API routes share one cache across Next's module instances and HMR reloads.
 const globalStore = globalThis as typeof globalThis & {
@@ -102,4 +109,25 @@ export function existingThreadSandbox(
   threadId: string
 ): LocalSandbox | undefined {
   return sandboxes.get(threadId);
+}
+
+/**
+ * A gzipped tarball of the thread's files, or nothing for a thread that has no
+ * directory yet. Leaves out what the deploy worker rebuilds itself: node_modules
+ * and dist.
+ */
+export async function archiveThreadWorkspace(
+  threadId: string
+): Promise<Blob | undefined> {
+  const directory = threadWorkspaceDir(threadId);
+  if (!existsSync(directory)) {
+    return;
+  }
+  // ponytail: buffered in memory; stream it to the upload server if projects outgrow archiveMaxBytes.
+  const { stdout } = await execFileAsync(
+    "tar",
+    ["-cz", "--exclude=node_modules", "--exclude=dist", "-C", directory, "."],
+    { encoding: "buffer", maxBuffer: archiveMaxBytes }
+  );
+  return new Blob([stdout]);
 }
