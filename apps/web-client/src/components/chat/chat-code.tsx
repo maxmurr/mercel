@@ -6,7 +6,12 @@ import {
   type HighlightResult,
 } from "@streamdown/code";
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import { ChevronRightIcon, FileIcon, PanelLeftOpenIcon } from "lucide-react";
+import {
+  ChevronRightIcon,
+  FileIcon,
+  FolderIcon,
+  PanelLeftOpenIcon,
+} from "lucide-react";
 import {
   type ComponentProps,
   type CSSProperties,
@@ -34,7 +39,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 // Matches the workspace id configured on the agent in src/mastra/agents/agent.ts.
@@ -177,16 +182,55 @@ function StatusMessage({ className, ...props }: ComponentProps<"p">) {
   );
 }
 
-function LoadingMessage(props: ComponentProps<typeof StatusMessage>) {
+// Fixed widths keep server and client markup identical instead of reshuffling on every render.
+const treeSkeletonWidths = ["w-28", "w-20", "w-32", "w-24", "w-16"];
+const codeSkeletonWidths = [
+  "w-2/3",
+  "w-1/2",
+  "w-3/4",
+  "w-1/3",
+  "w-5/6",
+  "w-2/5",
+];
+
+interface TreeSkeletonProps {
+  depth: number;
+  rows?: number;
+}
+
+/** Placeholder rows sized like tree rows so entries slot in without moving anything. */
+function TreeSkeleton({
+  depth,
+  rows = treeSkeletonWidths.length,
+}: TreeSkeletonProps) {
   return (
-    <StatusMessage role="status" {...props}>
-      <Spinner
-        aria-hidden="true"
-        className="shrink-0 motion-reduce:animate-none"
-        role="presentation"
-      />
-      Loading…
-    </StatusMessage>
+    <div role="status">
+      <span className="sr-only">Loading…</span>
+      {treeSkeletonWidths.slice(0, rows).map((width) => (
+        <div
+          className="flex h-11 items-center gap-2 pr-3 pl-(--tree-indent) sm:h-8"
+          key={width}
+          style={indentStyle(depth)}
+        >
+          <Skeleton className="size-4 shrink-0 motion-reduce:animate-none" />
+          <Skeleton className={cn("h-4 motion-reduce:animate-none", width)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Placeholder lines sized like code lines while a file downloads. */
+function CodeSkeleton() {
+  return (
+    <div className="p-4" role="status">
+      <span className="sr-only">Loading…</span>
+      {codeSkeletonWidths.map((width) => (
+        <div className="flex h-7 items-center sm:h-6" key={width}>
+          <Skeleton className={cn("h-4 motion-reduce:animate-none", width)} />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -279,14 +323,43 @@ function DirectoryNode({
   );
 }
 
-interface DirectoryEntriesProps {
+interface EntryListProps {
   depth: number;
+  entries: WorkspaceEntry[];
   onSelect: (path: string) => void;
   path: string;
   selectedPath: string | undefined;
 }
 
-/** Lists one folder; nested folders fetch their own entries when expanded. */
+function EntryList({
+  depth,
+  entries,
+  onSelect,
+  path,
+  selectedPath,
+}: EntryListProps) {
+  return (
+    <ul>
+      {entries.map((entry) => {
+        const Node = entry.type === "directory" ? DirectoryNode : FileNode;
+        return (
+          <Node
+            depth={depth}
+            entry={entry}
+            key={entry.name}
+            onSelect={onSelect}
+            parentPath={path}
+            selectedPath={selectedPath}
+          />
+        );
+      })}
+    </ul>
+  );
+}
+
+type DirectoryEntriesProps = Omit<EntryListProps, "entries">;
+
+/** Lists one nested folder; it fetches its own entries when expanded. */
 function DirectoryEntries({
   depth,
   onSelect,
@@ -296,9 +369,7 @@ function DirectoryEntries({
   const directoryQuery = useQuery(directoryOptions(path));
 
   if (directoryQuery.isPending) {
-    return (
-      <LoadingMessage className={treeMessageClass} style={indentStyle(depth)} />
-    );
+    return <TreeSkeleton depth={depth} rows={2} />;
   }
   if (directoryQuery.isError) {
     return (
@@ -320,21 +391,13 @@ function DirectoryEntries({
   }
 
   return (
-    <ul>
-      {directoryQuery.data.map((entry) => {
-        const Node = entry.type === "directory" ? DirectoryNode : FileNode;
-        return (
-          <Node
-            depth={depth}
-            entry={entry}
-            key={entry.name}
-            onSelect={onSelect}
-            parentPath={path}
-            selectedPath={selectedPath}
-          />
-        );
-      })}
-    </ul>
+    <EntryList
+      depth={depth}
+      entries={directoryQuery.data}
+      onSelect={onSelect}
+      path={path}
+      selectedPath={selectedPath}
+    />
   );
 }
 
@@ -397,7 +460,7 @@ function FileBody({ path }: { path: string }) {
   const fileQuery = useQuery(fileOptions(path));
 
   if (fileQuery.isPending) {
-    return <LoadingMessage className="p-4" />;
+    return <CodeSkeleton />;
   }
   if (fileQuery.isError) {
     return (
@@ -457,8 +520,56 @@ function FileHeader({ onShowTree, path }: FileHeaderProps) {
   );
 }
 
+/** Fills the tab when there is nothing to browse: no sandbox yet, or a sandbox without files. */
+function WorkspaceEmpty({ title }: { title: string }) {
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FolderIcon />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>
+          Ask the agent to build something and its files will show up here.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
+interface FilePaneProps {
+  onShowTree: () => void;
+  selectedPath: string | undefined;
+}
+
+function FilePane({ onShowTree, selectedPath }: FilePaneProps) {
+  if (selectedPath === undefined) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileIcon />
+          </EmptyMedia>
+          <EmptyTitle>No file selected</EmptyTitle>
+          <EmptyDescription>
+            Pick a file from the tree to read it.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
+  return (
+    <>
+      <FileHeader onShowTree={onShowTree} path={selectedPath} />
+      <FileBody path={selectedPath} />
+    </>
+  );
+}
+
 /** Browses the agent's sandbox: a lazily loaded file tree beside a read-only, highlighted viewer. */
-export function ChatCode({ className }: { className?: string }) {
+function WorkspaceBrowser() {
+  const rootQuery = useQuery(directoryOptions(rootPath));
   const [selectedPath, setSelectedPath] = useState<string>();
   // Narrow containers show either the tree or the file; wide ones show both.
   const [isTreeOpen, setIsTreeOpen] = useState(true);
@@ -472,55 +583,62 @@ export function ChatCode({ className }: { className?: string }) {
     setIsTreeOpen(true);
   }, []);
 
+  // The sandbox directory appears once the agent first runs; until then the root lookup fails.
+  if (rootQuery.isError) {
+    return <WorkspaceEmpty title="No sandbox yet" />;
+  }
+  const entries = rootQuery.data;
+  if (entries?.length === 0) {
+    return <WorkspaceEmpty title="No files yet" />;
+  }
+
   return (
-    <div className={cn("flex h-full min-h-0 min-w-0 flex-col", className)}>
-      <div className="@container flex min-h-0 min-w-0 flex-1">
-        <nav
-          aria-label="Workspace files"
-          className={cn(
-            "flex min-h-0 @lg:w-56 w-full shrink-0 flex-col @lg:border-r",
-            !isTreeOpen && "@max-lg:hidden"
-          )}
-          id={fileTreeId}
-        >
-          <h2 className="flex h-12 shrink-0 items-center border-b px-4 font-medium text-base sm:h-10 sm:text-sm">
-            Files
-          </h2>
-          <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto py-1">
-            <DirectoryEntries
+    <>
+      <nav
+        aria-label="Workspace files"
+        className={cn(
+          "flex min-h-0 @lg:w-56 w-full shrink-0 flex-col @lg:border-r",
+          !isTreeOpen && "@max-lg:hidden"
+        )}
+        id={fileTreeId}
+      >
+        <h2 className="flex h-12 shrink-0 items-center border-b px-4 font-medium text-base sm:h-10 sm:text-sm">
+          Files
+        </h2>
+        <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto py-1">
+          {entries ? (
+            <EntryList
               depth={0}
+              entries={entries}
               onSelect={handleSelect}
               path={rootPath}
               selectedPath={selectedPath}
             />
-          </div>
-        </nav>
-        <section
-          aria-label="File contents"
-          className={cn(
-            "flex min-h-0 min-w-0 flex-1 flex-col",
-            isTreeOpen && "@max-lg:hidden"
-          )}
-        >
-          {selectedPath === undefined ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <FileIcon />
-                </EmptyMedia>
-                <EmptyTitle>No file selected</EmptyTitle>
-                <EmptyDescription>
-                  Pick a file from the tree to read it.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
           ) : (
-            <>
-              <FileHeader onShowTree={handleShowTree} path={selectedPath} />
-              <FileBody path={selectedPath} />
-            </>
+            <TreeSkeleton depth={0} />
           )}
-        </section>
+        </div>
+      </nav>
+      <section
+        aria-label="File contents"
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 flex-col",
+          isTreeOpen && "@max-lg:hidden"
+        )}
+      >
+        {entries ? (
+          <FilePane onShowTree={handleShowTree} selectedPath={selectedPath} />
+        ) : null}
+      </section>
+    </>
+  );
+}
+
+export function ChatCode({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex h-full min-h-0 min-w-0 flex-col", className)}>
+      <div className="@container flex min-h-0 min-w-0 flex-1">
+        <WorkspaceBrowser />
       </div>
       <WebPreviewConsole />
     </div>

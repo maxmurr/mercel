@@ -248,3 +248,58 @@ it("reports folder and file errors in place", async () => {
   );
   expect(container.querySelector("code")).toBeNull();
 });
+
+it("shows skeleton rows in the tree while the workspace root loads", async () => {
+  fetchMock.mockImplementationOnce(
+    () => new Promise<Response>(() => undefined)
+  );
+  await renderChatCode();
+
+  const status = container.querySelector('nav [role="status"]');
+  expect(status?.textContent).toBe("Loading…");
+  expect(status?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(10);
+  expect(container.querySelector("h2")?.textContent).toBe("Files");
+  expect(container.textContent).not.toContain("No file selected");
+});
+
+it("shows skeleton lines while a file loads", async () => {
+  await renderChatCode();
+  fetchMock.mockImplementationOnce(
+    () => new Promise<Response>(() => undefined)
+  );
+  await clickButton("notes.txt");
+
+  const status = container.querySelector('section [role="status"]');
+  expect(status?.textContent).toBe("Loading…");
+  expect(status?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(6);
+  expect(container.querySelector("code")).toBeNull();
+});
+
+it("shows an empty state when the sandbox has no visible files", async () => {
+  fetchMock.mockImplementationOnce(() =>
+    Promise.resolve(
+      Response.json({
+        entries: [{ name: "node_modules", type: "directory" }],
+        path: ".",
+      })
+    )
+  );
+  await renderChatCode();
+
+  expect(container.textContent).toContain("No files yet");
+  expect(container.querySelector("nav")).toBeNull();
+  expect(container.textContent).not.toContain("No file selected");
+});
+
+it("shows an empty state when there is no sandbox", async () => {
+  fetchMock.mockImplementationOnce(() =>
+    Promise.resolve(
+      Response.json({ error: 'Path "." not found' }, { status: 404 })
+    )
+  );
+  await renderChatCode();
+
+  expect(container.textContent).toContain("No sandbox yet");
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+  expect(container.querySelector("nav")).toBeNull();
+});
