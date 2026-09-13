@@ -33,6 +33,8 @@ import { expect, test } from "vitest";
 const UPLOAD_SERVER_PATH = fileURLToPath(
   new URL("./upload-server.ts", import.meta.url)
 );
+const deployToken = "test-deploy-token";
+const deployHeaders = { Authorization: `Bearer ${deployToken}` };
 const SECRET_URL =
   "https://deploy:demo-secret%21suffix@example.com/org/repo.git?access_token=demo-query-token#demo-fragment";
 
@@ -60,6 +62,28 @@ test.each(["REDIS_URL", "WORKBENCH_USER", "WORKBENCH_PASS"])(
     expect(result.status).toBe(1);
     expect(result.stderr.toString()).toContain(
       "Workbench configuration missing: set REDIS_URL, WORKBENCH_USER, and WORKBENCH_PASS."
+    );
+  }
+);
+
+test.each([undefined, "", "   "])(
+  "startup rejects missing DEPLOY_TOKEN %j",
+  (token) => {
+    const result = spawnSync("bun", ["--no-env-file", UPLOAD_SERVER_PATH], {
+      env: {
+        ...process.env,
+        DATABASE_URL: "postgresql://test:test@127.0.0.1:1/test",
+        DEPLOY_TOKEN: token,
+        REDIS_URL: "redis://127.0.0.1:1",
+        WORKBENCH_PASS: "test-password",
+        WORKBENCH_USER: "test-user",
+      },
+      timeout: 5000,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr.toString()).toContain(
+      "Deployment authentication missing: set DEPLOY_TOKEN."
     );
   }
 );
@@ -155,6 +179,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
       AWS_SECRET_ACCESS_KEY: "test-secret-key",
       AWS_SESSION_TOKEN: "",
       DATABASE_URL: databaseUrl,
+      DEPLOY_TOKEN: deployToken,
       NODE_ENV: "production",
       PORT: "0",
       REDIS_URL: redisUrl,
@@ -309,6 +334,19 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     expect(await unknownStatus.json()).toEqual({ message: "Upload not found" });
 
     await Promise.all(
+      ["/deploy", "/deploy/"].flatMap((path) =>
+        [null, archiveForm(archive)].map(async (body) => {
+          const unauthorized = await fetch(new URL(path, baseUrl), {
+            body,
+            method: "POST",
+          });
+          expect(unauthorized.status).toBe(401);
+        })
+      )
+    );
+    expect(await database.select().from(deployments)).toEqual([]);
+
+    await Promise.all(
       [
         null,
         JSON.stringify({}),
@@ -318,10 +356,12 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
       ].map(async (body) => {
         const result = await fetch(new URL("/deploy", baseUrl), {
           body,
-          headers:
-            body instanceof FormData
-              ? undefined
-              : { "Content-Type": "application/json" },
+          headers: {
+            ...deployHeaders,
+            ...(body instanceof FormData
+              ? {}
+              : { "Content-Type": "application/json" }),
+          },
           method: "POST",
         });
         expect(result.status).toBe(422);
@@ -332,6 +372,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
 
     const deploy = await fetch(new URL("/deploy", baseUrl), {
       body: archiveForm(archive),
+      headers: deployHeaders,
       method: "POST",
     });
     expect(deploy.status).toBe(200);
@@ -454,8 +495,35 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     await rm(join(sourceDirectory, "nested"), { recursive: true });
     const republishPath = join(workspace, "republish.tar.gz");
     spawnSync("tar", ["-czf", republishPath, "-C", sourceDirectory, "."]);
+    const uploadsBeforeUnauthorized = new Map(uploads);
+    await Promise.all(
+      [
+        undefined,
+        "Bearer wrong-deploy-token",
+        "Bearer test-deploy-tokem",
+        `Basic ${Buffer.from("test-user:test-password").toString("base64")}`,
+      ].map(async (authorization) => {
+        const unauthorized = await fetch(new URL("/deploy", baseUrl), {
+          body: archiveForm(bun.file(republishPath), id),
+          headers: authorization ? { Authorization: authorization } : {},
+          method: "POST",
+        });
+        expect(unauthorized.status).toBe(401);
+        expect(await unauthorized.json()).toEqual({ message: "Unauthorized" });
+      })
+    );
+    expect(await database.select().from(deployments)).toEqual([
+      { id, status: "completed" },
+    ]);
+    expect(uploads).toEqual(uploadsBeforeUnauthorized);
+    expect(await readFile(join(extractedDirectory, "README.md"), "utf8")).toBe(
+      "# Test project\n"
+    );
+    expect(await redis.lRange("bull:jobs:wait", 0, -1)).toEqual([]);
+
     const republish = await fetch(new URL("/deploy", baseUrl), {
       body: archiveForm(bun.file(republishPath), id),
+      headers: deployHeaders,
       method: "POST",
     });
 
@@ -483,6 +551,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
 
     const conflict = await fetch(new URL("/deploy", baseUrl), {
       body: archiveForm(bun.file(republishPath), id),
+      headers: deployHeaders,
       method: "POST",
     });
     expect(conflict.status).toBe(409);
@@ -504,6 +573,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     uploadsUntilFailure = 1;
     const failedUpload = await fetch(new URL("/deploy", baseUrl), {
       body: archiveForm(archive),
+      headers: deployHeaders,
       method: "POST",
     });
     expect(failedUpload.status).toBe(500);
@@ -542,6 +612,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
 
     const failedDeploy = await fetch(new URL("/deploy", baseUrl), {
       body: archiveForm(new Blob(["not a tarball"])),
+      headers: deployHeaders,
       method: "POST",
     });
     expect(failedDeploy.status).toBe(500);
@@ -574,7 +645,13 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     });
     expect(failedExtractEvent).not.toHaveProperty("currentKey");
     expect(failedExtractEvent).not.toHaveProperty("fileCount");
-    for (const secret of ["demo-secret", "demo-query-token", "demo-fragment"]) {
+    for (const secret of [
+      deployToken,
+      "wrong-deploy-token",
+      "demo-secret",
+      "demo-query-token",
+      "demo-fragment",
+    ]) {
       expect(output).not.toContain(secret);
     }
 
@@ -590,6 +667,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     uploadsUntilFailure = Number.POSITIVE_INFINITY;
     const redisFailedDeploy = await fetch(new URL("/deploy", baseUrl), {
       body: archiveForm(archive),
+      headers: deployHeaders,
       method: "POST",
     });
     expect(redisFailedDeploy.status).toBe(500);
@@ -627,6 +705,7 @@ test("deploy persists status independently of BullMQ jobs, including upload fail
     const uploadsBeforeDatabaseFailure = uploads.size;
     const databaseFailedDeploy = await fetch(new URL("/deploy", baseUrl), {
       body: archiveForm(archive),
+      headers: deployHeaders,
       method: "POST",
     });
     expect(databaseFailedDeploy.status).toBe(500);

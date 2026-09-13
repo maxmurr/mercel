@@ -31,6 +31,7 @@ beforeEach(() => {
   cwd = mkdtempSync(join(tmpdir(), "mercel-publish-"));
   process.chdir(cwd);
   vi.stubEnv("OPENCODE_API_KEY", "test-key");
+  vi.stubEnv("DEPLOY_TOKEN", "test-deploy-token");
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
 });
@@ -90,6 +91,8 @@ it("archives the thread's files without node_modules or dist and starts a deploy
   const [url, init] = fetchMock.mock.calls[0] ?? [];
   expect(String(url)).toBe("http://localhost:3000/deploy");
   expect(init?.method).toBe("POST");
+  expect(init?.headers).toEqual({ Authorization: "Bearer test-deploy-token" });
+  expect(init?.redirect).toBe("error");
   const archive =
     init?.body instanceof FormData ? init.body.get("archive") : undefined;
   if (!(archive instanceof Blob)) {
@@ -137,6 +140,53 @@ it("republishes the thread's deployment in place so its URL keeps working", asyn
   const [, init] = fetchMock.mock.calls[0] ?? [];
   const body = init?.body instanceof FormData ? init.body : undefined;
   expect(body?.get("id")).toBe("abc12");
+});
+
+it("refuses another account's deployment even with its thread ID", async () => {
+  writeThreadFiles({ "index.html": "attacker content" });
+  const memory = await mastra.getAgentById("agent").getMemory();
+  if (!memory) {
+    throw new Error("Agent has no memory.");
+  }
+  await memory.createThread({
+    metadata: { deploymentId: "abc12" },
+    resourceId: "other-user",
+    threadId,
+  });
+  const response = await publish();
+  expect(response.status).toBe(403);
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(
+    (await memory.getThreadById({ threadId }))?.metadata?.deploymentId
+  ).toBe("abc12");
+});
+
+it("ignores a client-supplied deployment ID and uses the owned thread's ID", async () => {
+  writeThreadFiles({ "index.html": "owner content" });
+  const memory = await mastra.getAgentById("agent").getMemory();
+  if (!memory) {
+    throw new Error("Agent has no memory.");
+  }
+  await memory.createThread({
+    metadata: { deploymentId: "abc12" },
+    resourceId: signedInUserId,
+    threadId,
+  });
+  fetchMock.mockResolvedValue(Response.json({ id: "abc12" }));
+  const response = await POST(
+    new Request(
+      `http://localhost:3002/api/workspace/${threadId}/publish?id=xyz98`,
+      {
+        body: JSON.stringify({ deploymentId: "xyz98", id: "xyz98" }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }
+    ),
+    { params: Promise.resolve({ threadId }) }
+  );
+  expect(response.status).toBe(200);
+  const body = fetchMock.mock.calls[0]?.[1]?.body;
+  expect(body instanceof FormData && body.get("id")).toBe("abc12");
 });
 
 it("remembers the deployment on the thread so the site reopens later", async () => {

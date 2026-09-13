@@ -246,15 +246,31 @@ thread routes. The route archives `.sandbox/<threadId>` with `tar`, leaving out
 `node_modules` and `dist`, posts the gzipped tarball to the upload API's
 `POST /deploy` as the multipart `archive` field, and returns the deployment ID.
 The archive is held in memory and capped at 64 MiB compressed.
-`src/features/workspace/workspace-deployment.ts` owns that request, the ID validation, the preview URL,
+`src/features/workspace/workspace-deployment-server.ts` sends that request with
+`Authorization: Bearer <DEPLOY_TOKEN>` and refuses redirects. The module is
+server-only. `workspace-deployment.ts` owns ID validation and preview URLs,
 while `workspace-query-options.ts` owns the browser's `deploymentStatusOptions`.
+
+Generate a dedicated secret with `openssl rand -base64 32` and set the same
+`DEPLOY_TOKEN` in upload-server and web-client runtime environments. Do not
+reuse Workbench credentials or the Better Auth secret. Keep it out of
+`NEXT_PUBLIC_*` variables and source control. Upload-server refuses startup
+without it; web-client refuses publishing without it. `/deploy` returns `401`
+for missing or invalid credentials before parsing the archive. `/status`
+remains public.
+
+The token grants permission to replace any deployment. Give it only to trusted
+internal callers that enforce ownership. This app checks the signed-in account
+against the stored thread owner and takes the republish ID only from that
+thread's metadata, never from the request body or query. Use HTTPS outside
+local development and rotate the token in both services if exposed.
 
 The button shows a spinner and `Publishing…` while the archive uploads, then
 while the browser polls `/status?id=...` every two seconds. Only `completed`
 adds an **Open site** link to the deployment's URL, opened in a new tab. A
 thread that has not run anything yet has no directory and answers `404`, shown
-as a toast. Publishing again after edits starts a new deployment with a new ID;
-the earlier one stays online.
+as a toast. Publishing again after edits replaces the thread's stored deployment
+in place, keeping its preview URL.
 
 Follow the root [README](../../README.md#run) to configure PostgreSQL, Redis,
 S3, the bucket, and migrations. Run `bun run dev` from the repository root to

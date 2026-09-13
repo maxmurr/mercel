@@ -1,5 +1,5 @@
 import { threadAccess } from "@/features/chat/chat-thread-access";
-import { startDeployment } from "@/features/workspace/workspace-deployment";
+import { startDeployment } from "@/features/workspace/workspace-deployment-server";
 import { mastra } from "@/mastra";
 import { archiveThreadWorkspace } from "@/mastra/thread-workspace";
 

@@ -29,6 +29,7 @@ test("upload server redacts connection errors in development output", async () =
   const output: string[] = [];
   vi.stubEnv("NODE_ENV", "development");
   vi.stubEnv("REDIS_URL", "redis://localhost:6379");
+  vi.stubEnv("DEPLOY_TOKEN", "test-deploy-token");
   vi.stubEnv("WORKBENCH_USER", "test-user");
   vi.stubEnv("WORKBENCH_PASS", "test-password");
   vi.stubEnv("PORT", "0");

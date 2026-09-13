@@ -1,7 +1,8 @@
 const deploymentIdPattern = /^[a-z0-9]{5}$/;
 const ipAddressPattern = /^(?:\d+\.){3}\d+$|:/;
 
-function readDeploymentOrigin(value: string) {
+/** Validates deployment endpoint origins before requests or preview URL construction. */
+export function readDeploymentOrigin(value: string) {
   let url: URL;
   try {
     url = new URL(value);
@@ -25,7 +26,8 @@ function readDeploymentOrigin(value: string) {
   return url;
 }
 
-function getPreviewBaseUrl() {
+/** Validates the preview origin and its support for deployment subdomains. */
+export function getDeploymentPreviewBaseUrl() {
   const url = readDeploymentOrigin(
     process.env.NEXT_PUBLIC_PREVIEW_BASE_URL ?? "http://localhost:3001"
   );
@@ -43,7 +45,8 @@ function validateDeploymentId(id: unknown): asserts id is string {
   }
 }
 
-function readDeploymentId(data: unknown) {
+/** Reads a validated deployment ID from an upload or publish response. */
+export function readDeploymentId(data: unknown) {
   const id =
     data && typeof data === "object" && "id" in data ? data.id : undefined;
   validateDeploymentId(id);
@@ -53,7 +56,7 @@ function readDeploymentId(data: unknown) {
 /** Builds a deployment subdomain URL while preserving the configured protocol and port. */
 export function getDeploymentPreviewUrl(id: string) {
   validateDeploymentId(id);
-  const url = getPreviewBaseUrl();
+  const url = getDeploymentPreviewBaseUrl();
   url.hostname = `${id}.${url.hostname}`;
   if (typeof window !== "undefined" && url.origin === window.location.origin) {
     throw new Error(
@@ -61,56 +64,6 @@ export function getDeploymentPreviewUrl(id: string) {
     );
   }
   return url.href;
-}
-
-/**
- * Starts one deployment from a gzipped tarball of the project root; callers
- * must not automatically retry this non-idempotent request. Runs on the server,
- * where the files are; the browser goes through `publishWorkspace`.
- *
- * Passing the ID of an earlier deployment republishes it in place, so the site
- * keeps the URL that has already been shared.
- */
-export async function startDeployment(archive: Blob, id?: string) {
-  const uploadServer = readDeploymentOrigin(
-    process.env.NEXT_PUBLIC_UPLOAD_SERVER_URL ?? "http://localhost:3000"
-  );
-  getPreviewBaseUrl();
-  const body = new FormData();
-  body.append("archive", archive, "source.tar.gz");
-  if (id) {
-    validateDeploymentId(id);
-    body.append("id", id);
-  }
-
-  try {
-    const response = await fetch(new URL("/deploy", uploadServer), {
-      body,
-      credentials: "omit",
-      method: "POST",
-    });
-    if (response.status === 409) {
-      throw new Error(
-        "This site is already publishing. Wait for it to finish, then publish again.",
-        { cause: response.status }
-      );
-    }
-    if (!response.ok) {
-      throw new Error(
-        `Deployment could not be started (HTTP ${response.status}).`,
-        { cause: response.status }
-      );
-    }
-    return { id: readDeploymentId(await response.json()) };
-  } catch (error) {
-    if (error instanceof Error && typeof error.cause === "number") {
-      throw error;
-    }
-    throw new Error(
-      "Deployment outcome is unknown. Deploying again may create another job.",
-      { cause: error }
-    );
-  }
 }
 
 /**

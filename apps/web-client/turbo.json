@@ -11,8 +11,22 @@
     "typecheck": {
       "outputs": [".next/types/**", "next-env.d.ts", "tsconfig.tsbuildinfo"]
     },
-    "dev": { "passThroughEnv": ["PORT", "OPENCODE_API_KEY", "EXA_API_KEY"] },
+    "dev": {
+      "passThroughEnv": [
+        "PORT",
+        "OPENCODE_API_KEY",
+        "EXA_API_KEY",
+        "DEPLOY_TOKEN"
+      ]
+    },
     "dev:mastra": { "passThroughEnv": ["OPENCODE_API_KEY", "EXA_API_KEY"] },
-    "start": { "passThroughEnv": ["PORT", "OPENCODE_API_KEY", "EXA_API_KEY"] }
+    "start": {
+      "passThroughEnv": [
+        "PORT",
+        "OPENCODE_API_KEY",
+        "EXA_API_KEY",
+        "DEPLOY_TOKEN"
+      ]
+    }
   }
 }

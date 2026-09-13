@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { cors } from "@elysia/cors";
@@ -35,6 +36,12 @@ if (!(REDIS_URL && WORKBENCH_USER && WORKBENCH_PASS)) {
     "Workbench configuration missing: set REDIS_URL, WORKBENCH_USER, and WORKBENCH_PASS."
   );
 }
+
+const { DEPLOY_TOKEN } = process.env;
+if (!DEPLOY_TOKEN?.trim()) {
+  throw new Error("Deployment authentication missing: set DEPLOY_TOKEN.");
+}
+const deployAuthorization = Buffer.from(`Bearer ${DEPLOY_TOKEN}`);
 
 const redisPublisher = createClient({
   disableOfflineQueue: true,
@@ -86,6 +93,25 @@ new Elysia()
   .use(cors({ credentials: false, origin: "*" }))
   // Disable Elysia's CSS overrides so Scalar's selected theme can apply.
   .use(openapi({ scalar: { customCss: "" } }))
+  .onRequest(({ request, status }) => {
+    const path = new URL(request.url).pathname;
+    if (
+      request.method !== "POST" ||
+      (path !== "/deploy" && path !== "/deploy/")
+    ) {
+      return;
+    }
+    // Trusted publishers enforce ownership; reject before parsing their archive.
+    const authorization = Buffer.from(
+      request.headers.get("authorization") ?? ""
+    );
+    if (
+      authorization.length !== deployAuthorization.length ||
+      !timingSafeEqual(authorization, deployAuthorization)
+    ) {
+      return status(401, { message: "Unauthorized" });
+    }
+  })
   .get("/", () => "Hello Elysia")
   .post(
     "/deploy",
@@ -174,6 +200,7 @@ new Elysia()
       }),
       response: {
         200: t.Object({ id: t.String() }),
+        401: t.Object({ message: t.String() }),
         409: t.Object({ id: t.String() }),
         500: t.Object({ id: t.String() }),
       },

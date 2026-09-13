@@ -7,8 +7,8 @@ import {
   getDeploymentPreviewUrl,
   publishWorkspace,
   shouldRetryDeploymentStatus,
-  startDeployment,
 } from "./workspace-deployment";
+import { startDeployment } from "./workspace-deployment-server";
 import { deploymentStatusOptions } from "./workspace-query-options";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -16,6 +16,7 @@ const archive = new Blob(["tarball"]);
 const threadId = "11111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
+  vi.stubEnv("DEPLOY_TOKEN", "test-deploy-token");
   vi.stubEnv("NEXT_PUBLIC_UPLOAD_SERVER_URL", undefined);
   vi.stubEnv("NEXT_PUBLIC_PREVIEW_BASE_URL", undefined);
   vi.stubGlobal("fetch", fetchMock);
@@ -32,7 +33,13 @@ it("starts one deployment by posting the archive as multipart form data", async 
   expect(await startDeployment(archive)).toEqual({ id: "abc12" });
   expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
     new URL("http://localhost:3000/deploy"),
-    { body: expect.any(FormData), credentials: "omit", method: "POST" }
+    {
+      body: expect.any(FormData),
+      credentials: "omit",
+      headers: { Authorization: "Bearer test-deploy-token" },
+      method: "POST",
+      redirect: "error",
+    }
   );
   const body = fetchMock.mock.calls[0]?.[1]?.body;
   if (!(body instanceof FormData)) {
@@ -45,6 +52,23 @@ it("starts one deployment by posting the archive as multipart form data", async 
   expect(file.name).toBe("source.tar.gz");
   expect(await file.text()).toBe("tarball");
 });
+
+it.each([undefined, "", "   "])(
+  "refuses to deploy without a token: %j",
+  async (token) => {
+    vi.stubEnv("DEPLOY_TOKEN", token);
+    await expect(startDeployment(archive)).rejects.toThrow("set DEPLOY_TOKEN");
+    expect(fetchMock).not.toHaveBeenCalled();
+  }
+);
+
+it.each(["", "../abc12", "INVALID"])(
+  "refuses an invalid republish ID: %j",
+  async (id) => {
+    await expect(startDeployment(archive, id)).rejects.toThrow("invalid ID");
+    expect(fetchMock).not.toHaveBeenCalled();
+  }
+);
 
 it("rejects a preview sharing the dashboard origin", () => {
   vi.stubGlobal("window", {
