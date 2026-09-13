@@ -17,6 +17,7 @@ const threadId = "11111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
   vi.stubEnv("DEPLOY_TOKEN", "test-deploy-token");
+  vi.stubEnv("UPLOAD_SERVER_URL", undefined);
   vi.stubEnv("NEXT_PUBLIC_UPLOAD_SERVER_URL", undefined);
   vi.stubEnv("NEXT_PUBLIC_PREVIEW_BASE_URL", undefined);
   vi.stubGlobal("fetch", fetchMock);
@@ -51,6 +52,24 @@ it("starts one deployment by posting the archive as multipart form data", async 
   }
   expect(file.name).toBe("source.tar.gz");
   expect(await file.text()).toBe("tarball");
+});
+
+it("uses the internal upload origin for publishing and the public origin for polling", async () => {
+  vi.stubEnv("UPLOAD_SERVER_URL", "http://upload-server.mercel:3000");
+  vi.stubEnv("NEXT_PUBLIC_UPLOAD_SERVER_URL", "http://localhost:3000");
+  fetchMock
+    .mockResolvedValueOnce(Response.json({ id: "abc12" }))
+    .mockResolvedValueOnce(Response.json({ status: "waiting" }));
+
+  await startDeployment(archive);
+  await fetchDeploymentStatus("abc12", new AbortController().signal);
+
+  expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+    "http://upload-server.mercel:3000/deploy"
+  );
+  expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+    "http://localhost:3000/status?id=abc12"
+  );
 });
 
 it.each([undefined, "", "   "])(

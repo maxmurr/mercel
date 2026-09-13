@@ -23,7 +23,8 @@
         "PORT",
         "OPENCODE_API_KEY",
         "EXA_API_KEY",
-        "DEPLOY_TOKEN"
+        "DEPLOY_TOKEN",
+        "UPLOAD_SERVER_URL"
       ]
     },
     "dev:mastra": { "passThroughEnv": ["OPENCODE_API_KEY", "EXA_API_KEY"] },
@@ -32,7 +33,8 @@
         "PORT",
         "OPENCODE_API_KEY",
         "EXA_API_KEY",
-        "DEPLOY_TOKEN"
+        "DEPLOY_TOKEN",
+        "UPLOAD_SERVER_URL"
       ]
     }
   }

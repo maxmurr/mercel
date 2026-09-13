@@ -1,16 +1,22 @@
 # Local Kubernetes infrastructure
 
-Three Argo CD Applications in `envs/default/apps/` deploy PostgreSQL, Redis, and
-RustFS into separate namespaces. Their native manifests live in `workloads/`,
-outside the root Application's recursive `envs/default` source. This keeps the
-root from also deploying child workloads into `argocd`.
+Seven Argo CD Applications live in `envs/default/apps/`. PostgreSQL, Redis, and
+RustFS use separate namespaces; the four application containers use `mercel`.
+Native manifests live in `workloads/`, outside the root Application's recursive
+`envs/default` source. This keeps the root from also deploying child workloads
+into `argocd`.
+
+This page covers data services. See [application containers](applications.md) for
+image builds/imports, runtime secrets, workload permissions, and local access.
+Complete that preparation before pushing the four app Applications to `main`.
 
 This is a single-node k3d development setup, not a production deployment. Each
-service has one replica, a headless internal Service, startup/readiness/liveness
+data service has one replica, a headless internal Service, startup/readiness/liveness
 probes, resource requests and memory limits, and a retained data PVC using k3d's
-`local-path` storage class. Containers run as non-root without Kubernetes API
-tokens. Image digests pin both AMD64 and ARM64 builds. RustFS is pinned to
-`1.0.0-rc.6`, a prerelease matching the upstream image available at setup time.
+`local-path` storage class. Data-service containers run as non-root without
+Kubernetes API tokens. Image digests pin both AMD64 and ARM64 builds. RustFS is
+pinned to `1.0.0-rc.6`, a prerelease matching the upstream image available at setup
+time.
 
 | Application | Internal endpoint | Storage | Authentication |
 | --- | --- | --- | --- |
@@ -125,8 +131,8 @@ validation.
 (
   set -eu
   kubectl apply --dry-run=server --validate=strict -f infra/envs/default/apps
-  for app in postgres redis rustfs; do
-    kubectl apply --dry-run=server --validate=strict -n default -f "infra/workloads/$app"
+  for workload in infra/workloads/*; do
+    kubectl apply --dry-run=server --validate=strict -n default -f "$workload"
   done
 )
 ```

@@ -27,9 +27,10 @@ docker build -f apps/web-client/Dockerfile -t mercel-web-client \
 ```
 
 Replace those origins with your endpoints. Next.js embeds both during the build;
-changing runtime variables does not update them. The upload origin must be
-reachable from both the browser and this container. Image builds need registry
-and Google Fonts access, but no live database or credentials.
+changing runtime variables does not update them. The public upload origin must
+be browser-reachable. Set runtime `UPLOAD_SERVER_URL` when this container needs a
+different internal origin; otherwise publishing uses the public origin too.
+Image builds need registry and Google Fonts access, but no live database or credentials.
 
 The image uses `turbo prune web-client --docker`, a frozen Bun install, and
 Next.js standalone output. Node.js runs as UID 1000 with port 3002 by default.
@@ -43,6 +44,8 @@ Create `apps/web-client/.env.docker` from `.env.example` and set runtime values:
   `GITHUB_CLIENT_SECRET`. Use fresh secrets and register the matching GitHub callback.
 - `OPENCODE_API_KEY` for chat, optional `EXA_API_KEY` for search.
 - `DEPLOY_TOKEN`, matching upload-server, for publishing.
+- Optional `UPLOAD_SERVER_URL` for the server-only publishing origin. For k3d,
+  see [application deployment](../../infra/applications.md).
 
 Use unquoted `KEY=value` lines for Docker's `--env-file`. Do not use the example
 credentials outside local development. Inside a container, `127.0.0.1` refers to
@@ -370,7 +373,7 @@ cp apps/web-client/.env.example apps/web-client/.env.local
 
 | Public variable | Default | Purpose |
 | --- | --- | --- |
-| `NEXT_PUBLIC_UPLOAD_SERVER_URL` | `http://localhost:3000` | Upload API origin; the publish route posts to it from the server, the browser polls status from it |
+| `NEXT_PUBLIC_UPLOAD_SERVER_URL` | `http://localhost:3000` | Browser polling origin; also used for publishing when server-only `UPLOAD_SERVER_URL` is unset |
 | `NEXT_PUBLIC_PREVIEW_BASE_URL` | `http://localhost:3001` | Preview base origin, before the deployment subdomain |
 
 Set HTTP(S) origins without credentials, paths, queries, or fragments. Preview

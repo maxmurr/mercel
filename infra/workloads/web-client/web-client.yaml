@@ -1,0 +1,150 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-client
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: web-client
+  ports:
+    - name: http
+      port: 3002
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web-client
+spec:
+  serviceName: web-client
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web-client
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web-client
+    spec:
+      automountServiceAccountToken: false
+      # The pod sandbox's PID 1 reaps orphaned preview processes.
+      shareProcessNamespace: true
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: web-client
+          image: mercel-web-client:local
+          imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            # Bubblewrap needs nested user namespaces; do not replace with privileged mode.
+            seccompProfile:
+              type: Unconfined
+            appArmorProfile:
+              type: Unconfined
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mercel-runtime
+                  key: DATABASE_URL
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mercel-runtime
+                  key: BETTER_AUTH_SECRET
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mercel-runtime
+                  key: GITHUB_CLIENT_ID
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mercel-runtime
+                  key: GITHUB_CLIENT_SECRET
+            - name: DEPLOY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mercel-runtime
+                  key: DEPLOY_TOKEN
+            - name: OPENCODE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mercel-runtime
+                  key: OPENCODE_API_KEY
+            - name: EXA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mercel-runtime
+                  key: EXA_API_KEY
+                  optional: true
+            - name: BETTER_AUTH_URL
+              value: http://localhost:3002
+            - name: UPLOAD_SERVER_URL
+              value: http://upload-server.mercel.svc.cluster.local:3000
+            - name: HOSTNAME
+              value: 0.0.0.0
+            - name: PORT
+              value: "3002"
+          ports:
+            - name: http
+              containerPort: 3002
+          startupProbe:
+            httpGet:
+              path: /api/auth/ok
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/auth/ok
+              port: http
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/auth/ok
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 1Gi
+            limits:
+              memory: 4Gi
+              ephemeral-storage: 4Gi
+          volumeMounts:
+            - name: sandbox
+              mountPath: /app/apps/web-client/.sandbox
+            - name: sandbox-profiles
+              mountPath: /app/apps/web-client/.sandbox-profiles
+            - name: npm-cache
+              mountPath: /home/node/.npm
+      volumes:
+        - name: sandbox-profiles
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: npm-cache
+          emptyDir:
+            sizeLimit: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: sandbox
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi

@@ -17,7 +17,9 @@ export async function startDeployment(archive: Blob, id?: string) {
     throw new Error("Deployment authentication missing: set DEPLOY_TOKEN.");
   }
   const uploadServer = readDeploymentOrigin(
-    process.env.NEXT_PUBLIC_UPLOAD_SERVER_URL ?? "http://localhost:3000"
+    process.env.UPLOAD_SERVER_URL ??
+      process.env.NEXT_PUBLIC_UPLOAD_SERVER_URL ??
+      "http://localhost:3000"
   );
   getDeploymentPreviewBaseUrl();
   const body = new FormData();

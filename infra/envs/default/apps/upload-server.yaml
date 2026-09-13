@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: upload-server
+  namespace: argocd
+spec:
+  destination:
+    namespace: mercel
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    repoURL: https://github.com/maxmurr/mercel
+    targetRevision: main
+    path: infra/workloads/upload-server
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
