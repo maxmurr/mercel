@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type { NextConfig } from "next";
 
 const MARKDOWN_FILE = /\.md/;
@@ -12,6 +13,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  output: "standalone",
+  outputFileTracingRoot: resolve(import.meta.dirname, "../.."),
   reactCompiler: true,
   serverExternalPackages: ["@mastra/*"],
   turbopack: {

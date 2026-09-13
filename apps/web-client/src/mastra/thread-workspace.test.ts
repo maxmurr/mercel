@@ -42,6 +42,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
   process.chdir(originalCwd);
   rmSync(cwd, { force: true, recursive: true });
 });
@@ -63,6 +64,13 @@ it("reuses one sandbox per thread and never shares it across threads", () => {
   expect(threadSandbox(threadA)).toBe(sandboxA);
   expect(threadSandbox(threadB)).not.toBe(sandboxA);
   expect(existingThreadSandbox(threadA)).toBe(sandboxA);
+});
+
+it("keeps sandbox dev dependencies enabled when the server runs in production", () => {
+  vi.stubEnv("NODE_ENV", "production");
+  const sandbox = threadSandbox("88888888-8888-4888-8888-888888888888");
+
+  expect(sandbox.buildEnv().NODE_ENV).toBe("development");
 });
 
 it("reports no sandbox for a thread that has not run anything", () => {

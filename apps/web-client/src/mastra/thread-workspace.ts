@@ -102,7 +102,7 @@ export function threadSandbox(threadId: string): LocalSandbox {
   const sandbox = new LocalSandbox({
     env: {
       HOME: process.env.HOME,
-      NODE_ENV: process.env.NODE_ENV,
+      NODE_ENV: "development",
       PATH: process.env.PATH,
     },
     isolation: process.platform === "darwin" ? "seatbelt" : "bwrap",

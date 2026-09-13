@@ -16,6 +16,89 @@ Override with `PORT=4000 bun run dev:web`.
 Edit `apps/web-client/src/app/page.tsx` to change the home page. The `@/*` import alias
 points to `apps/web-client/src/*`.
 
+## Docker
+
+Build from the repository root, not from `apps/web-client`:
+
+```sh
+docker build -f apps/web-client/Dockerfile -t mercel-web-client \
+  --build-arg NEXT_PUBLIC_UPLOAD_SERVER_URL=https://upload.example.com \
+  --build-arg NEXT_PUBLIC_PREVIEW_BASE_URL=https://preview.example.com .
+```
+
+Replace those origins with your endpoints. Next.js embeds both during the build;
+changing runtime variables does not update them. The upload origin must be
+reachable from both the browser and this container. Image builds need registry
+and Google Fonts access, but no live database or credentials.
+
+The image uses `turbo prune web-client --docker`, a frozen Bun install, and
+Next.js standalone output. Node.js runs as UID 1000 with port 3002 by default.
+The Dockerfile-specific ignore file excludes local secrets, sessions, sandboxes,
+and build output. Build-only auth/database placeholders are not runtime defaults.
+
+Create `apps/web-client/.env.docker` from `.env.example` and set runtime values:
+
+- `DATABASE_URL`, pointing to reachable PostgreSQL with auth migrations applied.
+- `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GITHUB_CLIENT_ID`, and
+  `GITHUB_CLIENT_SECRET`. Use fresh secrets and register the matching GitHub callback.
+- `OPENCODE_API_KEY` for chat, optional `EXA_API_KEY` for search.
+- `DEPLOY_TOKEN`, matching upload-server, for publishing.
+
+Use unquoted `KEY=value` lines for Docker's `--env-file`. Do not use the example
+credentials outside local development. Inside a container, `127.0.0.1` refers to
+that container, not your host. Docker Desktop exposes host services through
+`host.docker.internal`; on Linux, configure a reachable host or Docker network.
+PostgreSQL and the publishing backend remain separate services. Run migrations
+from the repository before starting the app; this image does not run them.
+
+```sh
+docker run --rm --init --name mercel-web-client \
+  -p 127.0.0.1:3002:3002 \
+  --env-file apps/web-client/.env.docker \
+  --mount type=volume,source=mercel-web-sandbox,target=/app/apps/web-client/.sandbox \
+  mercel-web-client
+```
+
+`--init` reaps sandbox child processes. The volume preserves generated projects;
+bind mounts must be writable by UID 1000. Run one replica because sandbox handles,
+dev servers, and process logs belong to one process. For another container port,
+set `-e PORT=4000` and change the port mapping too.
+
+Smoke checks from another terminal:
+
+```sh
+curl --fail http://localhost:3002/sign-in > /dev/null
+curl --fail http://localhost:3002/api/auth/ok
+# Expected: {"ok":true}. This checks auth initialization, not database connectivity.
+```
+
+### Sandbox requirements and preview limits
+
+The image includes Node/npm, Bubblewrap, `tar`, `zip`, the Vite starter, and agent
+skills. Sandboxes use `NODE_ENV=development` even when Next.js runs in production,
+so `npm install` includes the starter's dev dependencies.
+
+**Sandbox commands require nested user namespaces.** Docker's default security
+profile can block them even when Bubblewrap is installed. Check the intended
+runtime before enabling chat:
+
+```sh
+docker run --rm mercel-web-client \
+  bwrap --unshare-user --unshare-pid --ro-bind / / --proc /proc --dev /dev -- true
+```
+
+If this fails with a namespace permission error, the web server can still start,
+but agent commands cannot run. Use a host/runtime security policy that permits
+Bubblewrap's nested namespaces. Do not disable sandbox isolation or use
+`--privileged` as a workaround. The image does not grant extra capabilities or
+turn off Docker's security profile.
+
+Live Vite previews still return `localhost` URLs and bind to container loopback.
+Publishing port 3002 does not expose those servers, and remote browsers cannot
+reach them. Remote live previews need separate-origin routing and a sandbox
+server bind-address change; neither is included here. Published previews use the
+configured preview origin and are separate from live Vite previews.
+
 ## App architecture
 
 Pages and layouts compose synchronous server-rendered shells. `/chat/[threadId]`

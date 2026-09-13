@@ -2,6 +2,13 @@
   "extends": ["//"],
   "tasks": {
     "build": {
+      "env": [
+        "DATABASE_URL",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL"
+      ],
       "inputs": ["$TURBO_EXTENDS$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
