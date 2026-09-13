@@ -66,6 +66,39 @@ CORS allows all origins and handles `OPTIONS` preflight requests. Credentials ar
 disabled. Before enabling credentials, replace `origin: "*"` in
 `apps/upload-server/src/upload-server.ts` with an explicit allowlist of trusted frontend origins.
 
+### Request handler in Docker
+
+Build from the repository root so Turborepo can resolve workspace dependencies:
+
+```sh
+docker build -f apps/request-handler-server/Dockerfile -t mercel-request-handler .
+docker run --rm --name mercel-request-handler \
+  --env-file apps/request-handler-server/.env \
+  -e PORT=3001 -p 3001:3001 mercel-request-handler
+```
+
+The image uses Bun 1.4.2, runs as the non-root `bun` user, and installs only
+production dependencies from a pruned lockfile. It runs TypeScript directly,
+like `bun run start:request`; no build step is needed. The Dockerfile-specific
+ignore file excludes `.env` files, local dependencies, and generated output.
+
+Set `S3_BUCKET`, `AWS_REGION`, and credentials at runtime. Set `S3_ENDPOINT` for
+S3-compatible storage; omit it for AWS S3. No PostgreSQL or Redis is needed.
+Inside a container, `localhost` refers to that container. For the local k3d
+port-forward on Docker Desktop, add
+`-e S3_ENDPOINT=http://host.docker.internal:19000` to `docker run`. On Linux,
+use an S3 endpoint reachable from the container's network. To change the
+container port, update both `-e PORT=...` and the right side of `-p`.
+
+Requests need a five-character application ID in the first hostname label:
+
+```sh
+curl -H 'Host: abc12.localhost' http://localhost:3001/
+```
+
+This requests `dist/abc12/index.html` from `S3_BUCKET`. Missing files return
+`404`; plain `localhost` requests return `400 Invalid application ID`.
+
 ## API docs
 
 Open `http://localhost:3000/openapi` to test requests in Scalar. Select
