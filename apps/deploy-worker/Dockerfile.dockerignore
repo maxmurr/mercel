@@ -1,0 +1,12 @@
+**/.git
+**/.env*
+**/.npmrc
+**/node_modules
+**/.turbo
+**/.next
+**/dist
+**/output
+**/coverage
+**/*.tsbuildinfo
+**/*.log
+**/*.test.ts

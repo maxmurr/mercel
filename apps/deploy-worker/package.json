@@ -18,7 +18,8 @@
     "@repo/utils": "workspace:*",
     "bullmq": "catalog:",
     "drizzle-orm": "catalog:",
-    "evlog": "catalog:"
+    "evlog": "catalog:",
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
